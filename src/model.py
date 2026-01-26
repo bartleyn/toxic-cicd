@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import os
 from typing import Any, Dict, Optional, Tuple
 import json
@@ -82,11 +82,11 @@ class ToxicityModel:
         joblib.dump(self.clf, os.path.join(artifact_dir, 'model.joblib'))
 
         with open(os.path.join(artifact_dir, 'spec.json'), 'w') as f:
-            json.dump(self.spec, f, indent=2, sort_keys=True)
+            json.dump(asdict(self.spec), f, indent=2, sort_keys=True)
 
         if self.metadata:
             with open(os.path.join(artifact_dir, 'metadata.json'), 'w') as f:
-                json.dump(self.metadata, f, indent=2, sort_keys=True)
+                json.dump(asdict(self.metadata), f, indent=2, sort_keys=True)
 
 
     def load(cls, artifact_dir: str) -> "ToxicityModel":
