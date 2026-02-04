@@ -88,7 +88,7 @@ class ToxicityModel:
             with open(os.path.join(artifact_dir, 'metadata.json'), 'w') as f:
                 json.dump(asdict(self.metadata), f, indent=2, sort_keys=True)
 
-
+    @classmethod
     def load(cls, artifact_dir: str) -> "ToxicityModel":
         '''
         Load the model, hyperparameters and metadata
