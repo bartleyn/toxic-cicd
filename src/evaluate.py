@@ -47,7 +47,8 @@ def compute_binary_metrics(y_true: np.ndarray, y_proba: np.ndarray, threshold: f
         'tp': tp,
         'tn': tn,
         'fp': fp,
-        'fn': fn
+        'fn': fn,
+        'false_positive_rate': fp / (fp + tn) if (fp + tn) > 0 else 0.0
     }
 
 

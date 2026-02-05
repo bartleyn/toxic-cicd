@@ -1,0 +1,7 @@
+rules:
+  min_auc: 0.80
+  min_precision: 0.90
+  min_recall: 0.70
+  min_f1: 0.70
+  max_false_positive_rate: 0.20
+  min_eval_samples: 1000
