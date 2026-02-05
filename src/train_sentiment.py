@@ -75,11 +75,15 @@ def train_model(data, text_col: str, label_col: str, spec: SentimentModelSpec, t
 
 def save_model_artifacts(model: SentimentModel, fe: TextFeatureExtractor, 
                          metadata: SentimentModelMetadata, 
+                         model_version: str,
                          artifact_dir: str, 
                          train_metrics: dict,
                          extra_metadata: dict) -> None:
     os.makedirs(artifact_dir, exist_ok=True)
     
+
+    artifact_dir = os.path.join(artifact_dir, model_version)
+    artifact_dir = os.path.join(artifact_dir, 'sentiment')
     model.metadata = metadata
     model.save(artifact_dir=artifact_dir)
 
@@ -140,7 +144,8 @@ def main() -> None:
             model=model,
             fe=fe,
             metadata=metadata,
-            artifact_dir=os.path.join(args.artifact_dir, model_version),
+            model_version=model_version,
+            artifact_dir=args.artifact_dir,
             train_metrics=train_metrics,
             extra_metadata=extra_metadata
         )

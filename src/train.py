@@ -102,10 +102,11 @@ def save_model_artifacts(
          model_version: str,
          fe: TextFeatureExtractor,
          model: ToxicityModel,
+         metadata: ModelMetadata,
          train_metrics: Dict,
          extra_metadata: Dict,
          decision_threshold: float = 0.5,
-) -> str:
+) -> None:
     '''
     Saves in artifact_dir:
         model.joblib
@@ -117,14 +118,10 @@ def save_model_artifacts(
     '''
 
     artifact_dir = os.path.join(artifact_dir, model_version)
+    artifact_dir = os.path.join(artifact_dir, 'toxicity')
     os.makedirs(artifact_dir, exist_ok=True)   
 
-    model.metadata = ModelMetadata(
-        model_version=model_version,
-        decision_threshold=decision_threshold,
-        label_positive="toxic",
-        label_negative="non_toxic"
-    )
+    model.metadata = metadata
 
     model.save(artifact_dir)
 
@@ -142,7 +139,7 @@ def save_model_artifacts(
 
     with open(os.path.join(artifact_dir, "run.json"), "w") as f:
         json.dump(run_info, f, indent=2, sort_keys=True)
-    return artifact_dir
+    return None
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -204,11 +201,17 @@ def main() -> None:
         'spec': asdict(spec)
     }
 
+    metadata = ModelMetadata(
+        model_version=model_version,
+        decision_threshold=args.decision_threshold,
+    )
+
     artifact_dir = save_model_artifacts(
         artifact_dir=args.artifact_dir,
         model_version=model_version,
         fe=fe,
         model=model,
+        metadata=metadata,
         train_metrics=train_metrics,
         extra_metadata=extra_metadata,
         decision_threshold=args.decision_threshold
