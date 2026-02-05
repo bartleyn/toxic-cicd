@@ -11,3 +11,13 @@ def load_dataset_csv(path: str, text_col: str, label_col: str, num_rows: int = N
     df[label_col] = df[label_col].astype(int)
 
     return df[[text_col, label_col]]
+
+def get_git_sha() -> str:
+    '''
+    Returns the current git commit SHA
+    '''
+    try:
+        sha = subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('ascii').strip()
+    except Exception:
+        sha = 'unknown'
+    return sha
