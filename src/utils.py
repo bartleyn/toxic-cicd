@@ -1,4 +1,6 @@
 import pandas as pd
+import subprocess
+
 
 
 def load_dataset_csv(path: str, text_col: str, label_col: str, num_rows: int = None) -> pd.DataFrame:

@@ -62,6 +62,7 @@ def train_model(data: pd.DataFrame,
     validation_scores = model.score(X_valid_vec)
     auc = roc_auc_score(y_valid, validation_scores) if len(np.unique(y_valid)) > 1 else float("nan")
 
+
     metrics = {
         "validation_auc": auc,
         "n_train": int(len(X_train)),
@@ -182,7 +183,7 @@ def main() -> None:
         decision_threshold=args.decision_threshold,
     )
 
-    artifact_dir = save_model_artifacts(
+    save_model_artifacts(
         artifact_dir=args.artifact_dir,
         model_version=model_version,
         fe=fe,
@@ -193,7 +194,7 @@ def main() -> None:
         decision_threshold=args.decision_threshold
     )
 
-    print(f"[train] wrote artifacts to {artifact_dir}")
+    print(f"[train] wrote artifacts to {args.artifact_dir}")
     print(f"[train] training metrics: {json.dumps(train_metrics, indent=2, sort_keys=True)}")
 
 
