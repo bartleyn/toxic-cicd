@@ -19,8 +19,9 @@ class ScoreRequest(BaseModel):
     threshold: float | None = Field(None, description="Decision threshold for classification (optional)", ge=0.0, le=1.0)
 
 class ItemResult(BaseModel):
-    score: float = Field(..., description="Predicted probability of positive class")
+    toxicity_score: float = Field(..., description="Predicted probability of toxic class")
     label: int = Field(..., description="Predicted class label (0 or 1)")
+    sentiment_score: float = Field(..., description="Sentiment score from -1 (negative) to 1 (positive)")
 
     
 class ScoreResponse(BaseModel):
@@ -38,8 +39,6 @@ class InfoResponse(BaseModel):
     artifact_dir: str = Field(..., description="Directory where model artifacts are stored")
     model_version: str = Field(..., description="Version of the loaded model")
     default_threshold: float = Field(..., description="Default decision threshold for classification")
-    spec: dict
-    metadata: dict
 
 app = FastAPI(title="Toxic Comment Classification API")
 
@@ -94,7 +93,7 @@ def score(request: ScoreRequest, predictor: Predictor = Depends(get_predictor)) 
         return ScoreResponse(
             model_version=results['model_version'],
             threshold=results['threshold'],
-            results=[ItemResult(score=item['score'], label=item['label']) for item in results['results']]
+            results=[ItemResult(**item) for item in results['results']]
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
