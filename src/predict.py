@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import os
-from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
-import joblib 
+import joblib
 import numpy as np
 
-
-from .features import validate_texts, normalize_texts
-from .model import ToxicityModel
-from .signals.sentiment import SentimentModel
+from src.features import normalize_texts
+from src.model import ToxicityModel
+from src.schemas import ItemResult
+from src.signals.sentiment import SentimentModel
 
 
 class Predictor:
@@ -31,7 +30,6 @@ class Predictor:
 
 
     def score_texts(self, texts: List[str]) -> np.ndarray:
-        validate_texts(texts)
         normalized_texts = normalize_texts(texts)
         X = self.feature_extractor.transform(normalized_texts)
         return {
@@ -51,13 +49,12 @@ class Predictor:
 
         results = []
         for i in range(len(texts)):
-            result = {
-                'toxicity_score': float(toxicity_scores[i]),
-                'label': int(labels[i]),
-            }
-            if 'sentiment' in scores:
-                result['sentiment_score'] = float(scores['sentiment'][i])
-            results.append(result)
+            sentiment_score = float(scores['sentiment'][i]) if 'sentiment' in scores else 0.0
+            results.append(ItemResult(
+                toxicity_score=float(toxicity_scores[i]),
+                label=int(labels[i]),
+                sentiment_score=sentiment_score,
+            ))
 
         return {
             'model_version': self.model_version,

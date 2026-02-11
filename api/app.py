@@ -8,9 +8,10 @@ import os
 from typing import Dict, Any
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from src.predict import Predictor
+from src.schemas import ItemResult
 
 
 
@@ -18,12 +19,16 @@ class ScoreRequest(BaseModel):
     texts: list[str] = Field(..., description="List of texts to classify")
     threshold: float | None = Field(None, description="Decision threshold for classification (optional)", ge=0.0, le=1.0)
 
-class ItemResult(BaseModel):
-    toxicity_score: float = Field(..., description="Predicted probability of toxic class")
-    label: int = Field(..., description="Predicted class label (0 or 1)")
-    sentiment_score: float = Field(..., description="Sentiment score from -1 (negative) to 1 (positive)")
+    @field_validator('texts')
+    @classmethod
+    def texts_must_be_nonempty(cls, v):
+        if len(v) == 0:
+            raise ValueError('Input text list is empty')
+        for i, t in enumerate(v):
+            if len(t.strip()) == 0:
+                raise ValueError(f'Text at index {i} must not be empty or whitespace only')
+        return v
 
-    
 class ScoreResponse(BaseModel):
     model_version: str = Field(..., description="Version of the model used for prediction")
     threshold: float = Field(..., description="Decision threshold used for classification")
@@ -93,7 +98,7 @@ def score(request: ScoreRequest, predictor: Predictor = Depends(get_predictor)) 
         return ScoreResponse(
             model_version=results['model_version'],
             threshold=results['threshold'],
-            results=[ItemResult(**item) for item in results['results']]
+            results=results['results']
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

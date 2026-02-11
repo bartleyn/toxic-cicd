@@ -20,10 +20,10 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
 
-from .features import TextFeatureExtractor
-from .model import ToxicityModel, ModelMetadata, ModelSpec
+from src.features import TextFeatureExtractor
+from src.model import ToxicityModel, ModelMetadata, ModelSpec
 
-from .utils import load_dataset_csv, get_git_sha
+from src.utils import load_dataset_csv, get_git_sha
 
 
 '''
@@ -82,6 +82,7 @@ def save_model_artifacts(
          metadata: ModelMetadata,
          train_metrics: Dict,
          extra_metadata: Dict,
+         eval_df: pd.DataFrame,
          decision_threshold: float = 0.5,
 ) -> None:
     '''
@@ -91,12 +92,13 @@ def save_model_artifacts(
         metadata.json
         vectorizer.joblib
         train_metrics.json
+        eval.csv
         run.json
     '''
 
     artifact_dir = os.path.join(artifact_dir, model_version)
     artifact_dir = os.path.join(artifact_dir, 'toxicity')
-    os.makedirs(artifact_dir, exist_ok=True)   
+    os.makedirs(artifact_dir, exist_ok=True)
 
     model.metadata = metadata
 
@@ -104,9 +106,11 @@ def save_model_artifacts(
 
     joblib.dump(fe, os.path.join(artifact_dir, 'vectorizer.joblib'))
 
+    eval_df.to_csv(os.path.join(artifact_dir, 'eval.csv'), index=False)
+
     with open(os.path.join(artifact_dir, "train_metrics.json"), "w") as f:
         json.dump(train_metrics, f, indent=2, sort_keys=True)
-    
+
     run_info = {
         'model_version': model_version,
         'created_at_utc': datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -122,30 +126,30 @@ def save_model_artifacts(
 def arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train Toxicity Model")
 
-    parser.add_argument('--data_path', type=str, required=True,
+    parser.add_argument('--data-path', type=str, required=True,
                         help='Path to the CSV dataset file.')
-    parser.add_argument('--text_col', type=str, default='text',
+    parser.add_argument('--text-col', type=str, default='text',
                         help='Name of the text column in the dataset.')
-    parser.add_argument('--label_col', type=str, default='label',
+    parser.add_argument('--label-col', type=str, default='label',
                         help='Name of the label column in the dataset.')
-    parser.add_argument('--artifact_dir', type=str, required=True,
+    parser.add_argument('--artifact-dir', type=str, required=True,
                         help='Directory to save model artifacts.')
-    parser.add_argument('--model_version', type=str, required=True,
+    parser.add_argument('--model-version', type=str, required=True,
                         help='Version identifier for the model.')
-    parser.add_argument('--test_size', type=float, default=0.2,
+    parser.add_argument('--test-size', type=float, default=0.2,
                         help='Proportion of data to use for validation.')
-    parser.add_argument('--random_state', type=int, default=42,
+    parser.add_argument('--random-state', type=int, default=42,
                         help='Random state for reproducibility.')
-    parser.add_argument('--decision_threshold', type=float, default=0.5,
+    parser.add_argument('--decision-threshold', type=float, default=0.5,
                         help='Decision threshold for classification.')
-    parser.add_argument('--num_rows', type=int, default=None,
+    parser.add_argument('--num-rows', type=int, default=None,
                         help='Number of rows to read from the dataset CSV file (for debugging).')
 
     parser.add_argument('--C', type=float, default=2.0, 
                         help='Inverse of regularization strength for Logistic Regression.')
-    parser.add_argument('--max_iter', type=int, default=1000,
+    parser.add_argument('--max-iter', type=int, default=1000,
                         help='Maximum number of iterations for Logistic Regression.')
-    parser.add_argument('--class_weight', type=str, default=None,
+    parser.add_argument('--class-weight', type=str, default=None,
                         help='Class weight for Logistic Regression (e.g., "balanced").')
     return parser
 
@@ -161,16 +165,24 @@ def main() -> None:
 
     model_version = args.model_version.strip() or get_git_sha()
 
-    df = load_dataset_csv(args.data_path, text_col=args.text_col, 
+    df = load_dataset_csv(args.data_path, text_col=args.text_col,
                           label_col=args.label_col, num_rows=args.num_rows)
+
+    y = df[args.label_col].to_numpy()
+    train_df, eval_df = train_test_split(
+        df, test_size=args.test_size,
+        random_state=args.random_state,
+        stratify=y if len(np.unique(y)) > 1 else None
+    )
+
     fe, model, train_metrics = train_model(
-        data=df,
+        data=train_df,
         text_col=args.text_col,
         label_col=args.label_col,
         spec=spec,
         test_size=args.test_size,
         random_state=args.random_state)
-    
+
     extra_metadata = {
         'data_path': args.data_path,
         'text_col': args.text_col,
@@ -191,6 +203,7 @@ def main() -> None:
         metadata=metadata,
         train_metrics=train_metrics,
         extra_metadata=extra_metadata,
+        eval_df=eval_df,
         decision_threshold=args.decision_threshold
     )
 
