@@ -2,32 +2,9 @@ from typing import List
 import re
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
+from src.utils import validate_texts
 
-
-'''
-Validating text data
-'''
-
-def validate_texts(texts: List[str]) -> None:
-    '''
-    Docstring for validate_texts
-    
-    :param texts: Description
-    :type texts: List[str]
-    '''
-
-    if not isinstance(texts, list):
-        raise TypeError("Input must be a list of strings.")
-    
-    if len(texts) == 0:
-        raise ValueError("Input text list is empty")
-    
-    for t in texts:
-        if not isinstance(t, str):
-            raise TypeError("Each text in the input must be a string.")
-        if len(t.strip()) == 0:
-            raise ValueError("Texts must not be empty or whitespace only.")
-        
+   
 
 '''
 Normalization
@@ -64,7 +41,6 @@ class TextFeatureExtractor:
     def transform(self, texts: List[str]) -> np.ndarray:
         if not self.is_fitted:
             raise RuntimeError("The extractor must be fitted before use")
-        validate_texts(texts)
         normalized_texts = normalize_texts(texts)
         return self.vectorizer.transform(normalized_texts).toarray()
     

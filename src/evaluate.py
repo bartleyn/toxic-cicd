@@ -11,8 +11,8 @@ import joblib
 import pandas as pd
 from sklearn.metrics import average_precision_score, roc_auc_score, precision_recall_fscore_support, confusion_matrix
 
-from .model import ToxicityModel
-from .utils import load_dataset_csv
+from src.model import ToxicityModel
+from src.utils import load_dataset_csv, validate_texts
 
 
 def compute_binary_metrics(y_true: np.ndarray, y_proba: np.ndarray, threshold: float = 0.5) -> Dict[str, float]:
@@ -44,10 +44,10 @@ def compute_binary_metrics(y_true: np.ndarray, y_proba: np.ndarray, threshold: f
         'f1_score': f1,
         'specificity': specificity,
         'sensitivity': sensitivity,
-        'tp': tp,
-        'tn': tn,
-        'fp': fp,
-        'fn': fn,
+        'tp': int(tp),
+        'tn': int(tn),
+        'fp': int(fp),
+        'fn': int(fn),
         'false_positive_rate': fp / (fp + tn) if (fp + tn) > 0 else 0.0
     }
 
@@ -69,8 +69,7 @@ def compute_overall_metrics(y_true: np.ndarray, y_score: np.ndarray) -> Dict:
 
 def evaluate(artifact_dir: str, eval_df: pd.DataFrame, text_col: str, label_col: str, threshold: float) -> Dict:
 
-
-    model = ToxicityModel.load(os.path.join(artifact_dir, 'model'))
+    model = ToxicityModel.load(artifact_dir)
     fe = joblib.load(os.path.join(artifact_dir, 'vectorizer.joblib'))
 
 
@@ -113,7 +112,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 def main():
 
-    args = build_arg_parser().parser_args()
+    args = build_arg_parser().parse_args()
 
     df = load_dataset_csv(
         path=args.eval_data_path,
@@ -121,8 +120,10 @@ def main():
         label_col=args.label_col
     )
 
+    validate_texts(df[args.text_col].to_list())
+
     model = ToxicityModel.load(args.artifact_dir)
-    model_threshold = model.metadata.threshold if model.metadata else 0.5
+    model_threshold = model.metadata.decision_threshold if model.metadata else 0.5
     threshold = args.threshold if args.threshold is not None else model_threshold
 
     metrics = evaluate(
