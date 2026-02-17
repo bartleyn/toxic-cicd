@@ -18,7 +18,7 @@ COPY artifacts/${MODEL_VERSION}/ artifacts/${MODEL_VERSION}/
 
 RUN uv sync --frozen --no-dev
 
-ENV MODEL_ARTIFACT_DIR=artifacts/${MODEL_VERSION}/toxicity
+ENV MODEL_ARTIFACT_DIR=artifacts/${MODEL_VERSION}
 EXPOSE 8080
 
 CMD ["uv", "run", "uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8080"]
