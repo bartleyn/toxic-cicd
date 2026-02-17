@@ -89,3 +89,7 @@ def main():
     print(f"Promoted model at '{target}' to '{link_path}'")
 
     sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()

@@ -10,6 +10,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src/ src/
 COPY api/ api/
+COPY README.md ./
 
 # Copy trained artifacts
 COPY artifacts/ artifacts/
