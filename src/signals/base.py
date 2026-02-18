@@ -6,12 +6,11 @@ import numpy as np
 
 
 class BaseSignal(ABC):
-    """
-    This is an interface all scoring signals need to implement
-    """
+    """Interface all scoring signals must implement."""
 
     name: str
-    input_type: str  # so far, "tfidf" | "text"
 
     @abstractmethod
-    def score(self, inputs) -> np.ndarray: ...
+    def score(self, texts: list[str]) -> np.ndarray:
+        """Return a 1-D array of scores, one per input text."""
+        ...

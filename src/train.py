@@ -6,24 +6,18 @@ import os
 from dataclasses import asdict
 from datetime import UTC, datetime
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
-from src.features import TextFeatureExtractor
 from src.signals.toxicity import ModelMetadata, ModelSpec, ToxicityModel
 from src.utils import get_git_sha, load_dataset_csv
-
-"""
-Model training
-"""
 
 
 def train_model(
     data: pd.DataFrame, text_col: str, label_col: str, spec: ModelSpec, test_size: float = 0.2, random_state: int = 42
-) -> tuple[ToxicityModel, TextFeatureExtractor, float]:
+) -> tuple[ToxicityModel, dict]:
 
     X_texts = data[text_col].tolist()
     y = data[label_col].to_numpy()
@@ -32,20 +26,10 @@ def train_model(
         X_texts, y, test_size=test_size, random_state=random_state, stratify=y if len(np.unique(y)) > 1 else None
     )
 
-    fe = TextFeatureExtractor()
-
-    X_train_vec = fe.fit_transform(X_train)
-    X_valid_vec = fe.transform(X_valid)
-
-    # Initialize the model
-
     model = ToxicityModel(spec=spec)
+    model.fit(X_train, y_train)
 
-    # Train the model
-    model.fit(X_train_vec, y_train)
-
-    # Get some scores
-    validation_scores = model.score(X_valid_vec)
+    validation_scores = model.score(X_valid)
     auc = roc_auc_score(y_valid, validation_scores) if len(np.unique(y_valid)) > 1 else float("nan")
 
     metrics = {
@@ -56,13 +40,12 @@ def train_model(
         "positive_class_rate_valid": float(np.mean(y_valid)),
     }
 
-    return fe, model, metrics
+    return model, metrics
 
 
 def save_model_artifacts(
     artifact_dir: str,
     model_version: str,
-    fe: TextFeatureExtractor,
     model: ToxicityModel,
     metadata: ModelMetadata,
     train_metrics: dict,
@@ -70,26 +53,11 @@ def save_model_artifacts(
     eval_df: pd.DataFrame,
     decision_threshold: float = 0.5,
 ) -> None:
-    """
-    Saves in artifact_dir:
-        model.joblib
-        spec.json
-        metadata.json
-        vectorizer.joblib
-        train_metrics.json
-        eval.csv
-        run.json
-    """
-
-    artifact_dir = os.path.join(artifact_dir, model_version)
-    artifact_dir = os.path.join(artifact_dir, "toxicity")
+    artifact_dir = os.path.join(artifact_dir, model_version, "toxicity")
     os.makedirs(artifact_dir, exist_ok=True)
 
     model.metadata = metadata
-
     model.save(artifact_dir)
-
-    joblib.dump(fe, os.path.join(artifact_dir, "vectorizer.joblib"))
 
     eval_df.to_csv(os.path.join(artifact_dir, "eval.csv"), index=False)
 
@@ -105,7 +73,6 @@ def save_model_artifacts(
 
     with open(os.path.join(artifact_dir, "run.json"), "w") as f:
         json.dump(run_info, f, indent=2, sort_keys=True)
-    return None
 
 
 def arg_parser() -> argparse.ArgumentParser:
@@ -149,7 +116,7 @@ def main() -> None:
         df, test_size=args.test_size, random_state=args.random_state, stratify=y if len(np.unique(y)) > 1 else None
     )
 
-    fe, model, train_metrics = train_model(
+    model, train_metrics = train_model(
         data=train_df,
         text_col=args.text_col,
         label_col=args.label_col,
@@ -173,7 +140,6 @@ def main() -> None:
     save_model_artifacts(
         artifact_dir=args.artifact_dir,
         model_version=model_version,
-        fe=fe,
         model=model,
         metadata=metadata,
         train_metrics=train_metrics,

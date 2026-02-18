@@ -13,7 +13,6 @@ class SentimentModel(BaseSignal):
     """
 
     name = "sentiment"
-    input_type = "text"
 
     def score(self, texts: list[str]) -> np.ndarray:
         return vader_compound(texts)
