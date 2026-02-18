@@ -4,13 +4,19 @@ import argparse
 import json
 import os
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score, confusion_matrix, precision_recall_fscore_support, roc_auc_score
 
-from src.model import ToxicityModel
+from src.signals.base import BaseSignal
+from src.signals.hatespeech import HateSpeechModel
+from src.signals.toxicity import ToxicityModel
 from src.utils import load_dataset_csv, validate_texts
+
+MODEL_REGISTRY: dict[str, type[BaseSignal]] = {
+    "toxicity": ToxicityModel,
+    "hatespeech": HateSpeechModel,
+}
 
 
 def compute_binary_metrics(y_true: np.ndarray, y_proba: np.ndarray, threshold: float = 0.5) -> dict[str, float]:
@@ -61,16 +67,21 @@ def compute_overall_metrics(y_true: np.ndarray, y_score: np.ndarray) -> dict:
     return {"overall_auc": auc, "overall_average_precision": avg_precision}
 
 
-def evaluate(artifact_dir: str, eval_df: pd.DataFrame, text_col: str, label_col: str, threshold: float) -> dict:
+def evaluate(
+    artifact_dir: str,
+    eval_df: pd.DataFrame,
+    text_col: str,
+    label_col: str,
+    threshold: float,
+    model_cls: type[BaseSignal] = ToxicityModel,
+) -> dict:
 
-    model = ToxicityModel.load(artifact_dir)
-    fe = joblib.load(os.path.join(artifact_dir, "vectorizer.joblib"))
+    model = model_cls.load(artifact_dir)
 
-    X_inputs = eval_df[text_col].tolist()
+    texts = eval_df[text_col].tolist()
     y_true = eval_df[label_col].to_numpy()
 
-    X = fe.transform(X_inputs)
-    y_proba = model.score(X)
+    y_proba = model.score(texts)
 
     overall = compute_overall_metrics(y_true, y_proba)
     binary = compute_binary_metrics(y_true, y_proba, threshold=threshold)
@@ -93,7 +104,14 @@ def write_metrics(metrics: dict, out_path: str) -> None:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Evaluate a trained Toxicity model")
+    parser = argparse.ArgumentParser(description="Evaluate a trained model")
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        choices=list(MODEL_REGISTRY.keys()),
+        default="toxicity",
+        help="Type of model to evaluate.",
+    )
     parser.add_argument("--artifact-dir", type=str, required=True, help="Path to the model artifact directory")
     parser.add_argument("--eval-data-path", type=str, required=True, help="Path to the evaluation dataset CSV file")
     parser.add_argument("--text-col", type=str, default="text", help="Name of the text column in the dataset")
@@ -113,7 +131,8 @@ def main():
 
     validate_texts(df[args.text_col].to_list())
 
-    model = ToxicityModel.load(args.artifact_dir)
+    model_cls = MODEL_REGISTRY[args.model_type]
+    model = model_cls.load(args.artifact_dir)
     model_threshold = model.metadata.decision_threshold if model.metadata else 0.5
     threshold = args.threshold if args.threshold is not None else model_threshold
 
@@ -123,6 +142,7 @@ def main():
         text_col=args.text_col,
         label_col=args.label_col,
         threshold=threshold,
+        model_cls=model_cls,
     )
 
     write_metrics(metrics, args.out_filename)

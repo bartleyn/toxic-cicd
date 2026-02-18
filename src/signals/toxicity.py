@@ -6,18 +6,25 @@ from dataclasses import asdict, dataclass
 
 import joblib
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 
+from src.features import normalize_texts
 from src.signals.model import BaseModel
 
 
 @dataclass(frozen=True)
 class ModelSpec:
+    # classifier params
     model_type: str = "logistic"
     C: float = 2.0
     max_iter: int = 200
     random_state: int = 42
     class_weight: str = "balanced"
+    # vectorizer params
+    max_features: int = 10000
+    ngram_range: tuple = (1, 2)
+    min_df: int = 2
 
 
 @dataclass(frozen=True)
@@ -30,7 +37,6 @@ class ModelMetadata:
 
 class ToxicityModel(BaseModel):
     name = "toxicity"
-    input_type = "tfidf"
 
     def __init__(self, spec: ModelSpec = None, metadata: ModelMetadata = None):
         self.spec = spec if spec is not None else ModelSpec()
@@ -41,68 +47,53 @@ class ToxicityModel(BaseModel):
             random_state=self.spec.random_state,
             class_weight=self.spec.class_weight,
         )
+        self.vectorizer = TfidfVectorizer(
+            max_features=self.spec.max_features,
+            ngram_range=self.spec.ngram_range,
+            min_df=self.spec.min_df,
+        )
         self.is_fitted = False
 
-    def fit(self, X, y) -> ToxicityModel:
+    def fit(self, texts: list[str], y) -> ToxicityModel:
+        normalized = normalize_texts(texts)
+        X = self.vectorizer.fit_transform(normalized)
         self.clf.fit(X, y)
         self.is_fitted = True
         return self
 
-    def predict_proba(self, X) -> np.ndarray:
+    def score(self, texts: list[str]) -> np.ndarray:
         if not self.is_fitted:
             raise RuntimeError("Model must be fitted before prediction.")
-        return self.clf.predict_proba(X)
+        normalized = normalize_texts(texts)
+        X = self.vectorizer.transform(normalized)
+        return self.clf.predict_proba(X)[:, 1]
 
-    def score(self, X) -> np.ndarray:
-        proba = self.predict_proba(X)
-        return proba[:, 1]  # Probability of the positive class
-
-    def predict_labels(self, X, threshold: float = None) -> np.ndarray:
+    def predict_labels(self, texts: list[str], threshold: float = None) -> np.ndarray:
         if threshold is None:
             threshold = self.metadata.decision_threshold if self.metadata else 0.5
-
-        return (self.score(X) >= threshold).astype(int)
-
-    """
-    I/O
-    """
+        return (self.score(texts) >= threshold).astype(int)
 
     def save(self, artifact_dir: str) -> None:
-        """
-        Save the model, hyperparameters and metadata
-        """
-
         os.makedirs(artifact_dir, exist_ok=True)
-
         joblib.dump(self.clf, os.path.join(artifact_dir, "model.joblib"))
-
+        joblib.dump(self.vectorizer, os.path.join(artifact_dir, "vectorizer.joblib"))
         with open(os.path.join(artifact_dir, "spec.json"), "w") as f:
             json.dump(asdict(self.spec), f, indent=2, sort_keys=True)
-
         if self.metadata:
             with open(os.path.join(artifact_dir, "metadata.json"), "w") as f:
                 json.dump(asdict(self.metadata), f, indent=2, sort_keys=True)
 
     @classmethod
     def load(cls, artifact_dir: str) -> ToxicityModel:
-        """
-        Load the model, hyperparameters and metadata
-        """
-
         with open(os.path.join(artifact_dir, "spec.json")) as f:
-            spec_dict = json.load(f)
-            spec = ModelSpec(**spec_dict)
-
+            spec = ModelSpec(**json.load(f))
         metadata_path = os.path.join(artifact_dir, "metadata.json")
+        metadata = None
         if os.path.exists(metadata_path):
             with open(metadata_path) as f:
-                metadata_dict = json.load(f)
-                metadata = ModelMetadata(**metadata_dict)
-        else:
-            metadata = None
-
+                metadata = ModelMetadata(**json.load(f))
         model = cls(spec=spec, metadata=metadata)
         model.clf = joblib.load(os.path.join(artifact_dir, "model.joblib"))
+        model.vectorizer = joblib.load(os.path.join(artifact_dir, "vectorizer.joblib"))
         model.is_fitted = True
-
         return model
