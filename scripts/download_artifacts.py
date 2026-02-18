@@ -68,9 +68,11 @@ def main() -> None:
 
     client = storage.Client.create_anonymous_client()
     bucket = client.bucket(bucket_name)
+    print(f"VERSION NUMBER FROM ENV {version}")
 
     # Resolve version using the toxicity LATEST pointer (primary model)
     version = resolve_version(bucket, "toxicity", version)
+
 
     for model_type in MODEL_TYPES:
         print(f"Downloading {model_type} model v{version} to {dest_dir}/")

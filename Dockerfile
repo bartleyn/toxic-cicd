@@ -15,8 +15,7 @@ COPY README.md ./
 
 RUN uv sync --frozen --no-dev
 ENV MODEL_VERSION=1.1.0
-ENV MODEL_ARTIFACT_DIR=artifacts/1.1.0
-
+ENV MODEL_ARTIFACT_DIR=artifacts
 
 
 COPY entrypoint.sh .
