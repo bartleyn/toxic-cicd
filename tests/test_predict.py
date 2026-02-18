@@ -13,10 +13,14 @@ def _make_predictor(tox_scores=None, sent_scores=None, threshold=0.5):
     sent_scores = sent_scores if sent_scores is not None else np.array([0.3, -0.4])
 
     tox_model = MagicMock()
+    tox_model.name = 'toxicity'
+    tox_model.input_type = 'tfidf'
     tox_model.score.return_value = tox_scores
     tox_model.metadata = MagicMock(decision_threshold=threshold, model_version="1.0.0")
 
     sent_model = MagicMock()
+    sent_model.name = 'sentiment'
+    sent_model.input_type = 'text'
     sent_model.score.return_value = sent_scores
 
     vectorizer = MagicMock()
@@ -25,10 +29,7 @@ def _make_predictor(tox_scores=None, sent_scores=None, threshold=0.5):
     predictor = object.__new__(Predictor)
     predictor.artifact_dir = "fake/dir"
     predictor.feature_extractor = vectorizer
-    predictor.models = {
-        "toxicity": (tox_model, "binary"),
-        "sentiment": (sent_model, "numeric"),
-    }
+    predictor.models = [tox_model, sent_model]
     predictor.default_threshold = threshold
     predictor.model_version = "1.0.0"
     return predictor
@@ -52,7 +53,7 @@ class TestScoreTexts:
     def test_toxicity_model_receives_tfidf_matrix(self):
         predictor = _make_predictor()
         predictor.score_texts(["hello", "world"])
-        tox_model = predictor.models["toxicity"][0]
+        tox_model = predictor._get_signal('toxicity')
         call_arg = tox_model.score.call_args[0][0]
         assert isinstance(call_arg, np.ndarray)
 
@@ -61,7 +62,7 @@ class TestScoreTexts:
         correctly passes normalized_texts instead of the TF-IDF matrix."""
         predictor = _make_predictor()
         predictor.score_texts(["Hello", "World"])
-        sent_model = predictor.models["sentiment"][0]
+        sent_model = predictor._get_signal('sentiment')
         call_arg = sent_model.score.call_args[0][0]
         assert call_arg == ["hello", "world"]
 
