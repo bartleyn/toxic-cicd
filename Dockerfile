@@ -19,6 +19,7 @@ COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
 ENV MODEL_ARTIFACT_DIR=artifacts
+ENV MODEL_VERSION=1.1.0
 EXPOSE 8080
 
 ENTRYPOINT ["./entrypoint.sh"]
