@@ -16,6 +16,8 @@ import os
 
 from google.cloud import storage
 
+MODEL_TYPES = ["toxicity", "hatespeech"]
+
 
 def resolve_version(bucket: storage.Bucket, model_type: str, version: str) -> str:
     """If version is 'latest', read the LATEST pointer file; otherwise pass through."""
@@ -37,7 +39,7 @@ def download_model(bucket: storage.Bucket, model_type: str, version: str, dest_d
     prefix = f"models/{model_type}/{version}/{model_type}/"
     blobs = list(bucket.list_blobs(prefix=prefix))
     if not blobs:
-        raise FileNotFoundError(f"No artifacts found at gs://{bucket.name}/{prefix}")
+        return 0
 
     local_model_dir = os.path.join(dest_dir, model_type)
     os.makedirs(local_model_dir, exist_ok=True)
@@ -67,10 +69,16 @@ def main() -> None:
     client = storage.Client.create_anonymous_client()
     bucket = client.bucket(bucket_name)
 
+    # Resolve version using the toxicity LATEST pointer (primary model)
     version = resolve_version(bucket, "toxicity", version)
-    print(f"Downloading toxicity model v{version} to {dest_dir}/")
-    count = download_model(bucket, "toxicity", version, dest_dir)
-    print(f"Downloaded {count} artifact(s)")
+
+    for model_type in MODEL_TYPES:
+        print(f"Downloading {model_type} model v{version} to {dest_dir}/")
+        count = download_model(bucket, model_type, version, dest_dir)
+        if count:
+            print(f"  Downloaded {count} artifact(s)")
+        else:
+            print(f"  No artifacts found for {model_type} — skipping")
 
 
 if __name__ == "__main__":
