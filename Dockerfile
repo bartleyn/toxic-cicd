@@ -10,16 +10,15 @@ RUN uv sync --frozen --no-dev --no-install-project
 
 COPY src/ src/
 COPY api/ api/
+COPY scripts/ scripts/
 COPY README.md ./
-
-# Copy trained artifacts
-ARG MODEL_VERSION=1.0.0
-COPY artifacts/${MODEL_VERSION}/ artifacts/${MODEL_VERSION}/
 
 RUN uv sync --frozen --no-dev
 
-ENV MODEL_ARTIFACT_DIR=artifacts/${MODEL_VERSION}
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+ENV MODEL_ARTIFACT_DIR=artifacts
 EXPOSE 8080
 
-CMD ["uv", "run", "uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8080"]
-
+ENTRYPOINT ["./entrypoint.sh"]
