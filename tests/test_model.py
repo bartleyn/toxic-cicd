@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from src.model import ModelMetadata, ModelSpec, ToxicityModel
+from src.signals.toxicity import ModelMetadata, ModelSpec, ToxicityModel
 
 
 def _fit_tiny_model():
