@@ -11,6 +11,7 @@ class SentimentModel(BaseSignal):
 
     Implements the same ``score(texts)`` interface for easier swapping later
     """
+
     name = "sentiment"
     input_type = "text"
 

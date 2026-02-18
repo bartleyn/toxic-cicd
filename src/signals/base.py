@@ -11,8 +11,7 @@ class BaseSignal(ABC):
     """
 
     name: str
-    input_type: str # so far, "tfidf" | "text"
+    input_type: str  # so far, "tfidf" | "text"
 
     @abstractmethod
-    def score(self, inputs) -> np.ndarray:
-        ...
+    def score(self, inputs) -> np.ndarray: ...

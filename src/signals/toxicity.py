@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -32,6 +31,7 @@ class ModelMetadata:
 class ToxicityModel(BaseModel):
     name = "toxicity"
     input_type = "tfidf"
+
     def __init__(self, spec: ModelSpec = None, metadata: ModelMetadata = None):
         self.spec = spec if spec is not None else ModelSpec()
         self.metadata = metadata

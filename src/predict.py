@@ -8,9 +8,9 @@ import numpy as np
 
 from src.features import normalize_texts
 from src.schemas import ItemResult
+from src.signals.base import BaseSignal
 from src.signals.sentiment import SentimentModel
 from src.signals.toxicity import ToxicityModel
-from src.signals.base import BaseSignal
 
 
 class Predictor:
@@ -19,30 +19,21 @@ class Predictor:
 
         tox_dir = os.path.join(artifact_dir, "toxicity")
         self.feature_extractor = joblib.load(os.path.join(tox_dir, "vectorizer.joblib"))
-        self.models: list[BaseSignal] = [
-            ToxicityModel.load(artifact_dir=tox_dir),
-            SentimentModel()
-        ]
+        self.models: list[BaseSignal] = [ToxicityModel.load(artifact_dir=tox_dir), SentimentModel()]
 
-        tox = self._get_signal('toxicity')
+        tox = self._get_signal("toxicity")
 
-        self.default_threshold = (
-            tox.metadata.decision_threshold if tox.metadata else 0.5
-        )
-        self.model_version = (
-            tox.model_version if tox.metadata else "unknown"
-        )
+        self.default_threshold = tox.metadata.decision_threshold if tox.metadata else 0.5
+        self.model_version = tox.model_version if tox.metadata else "unknown"
+
     def _get_signal(self, name: str) -> BaseSignal:
         return next(s for s in self.models if s.name == name)
 
     def score_texts(self, texts: list[str]) -> np.ndarray:
         normalized_texts = normalize_texts(texts)
         X = self.feature_extractor.transform(normalized_texts)
-        inputs = {'tfidf': X, 'text': normalized_texts}
-        return {
-            model.name: model.score(inputs[model.input_type])
-            for model in self.models
-        }
+        inputs = {"tfidf": X, "text": normalized_texts}
+        return {model.name: model.score(inputs[model.input_type]) for model in self.models}
 
     def predict(self, texts: list[str], threshold: float | None = None) -> dict[str, Any]:
         threshold = threshold if threshold is not None else self.default_threshold
@@ -52,11 +43,11 @@ class Predictor:
 
         results = []
         for i in range(len(texts)):
+            item_scores = {name: float(vals[i]) for name, vals in scores.items()}
             results.append(
                 ItemResult(
-                    toxicity_score=float(toxicity_scores[i]),
                     label=int(labels[i]),
-                    sentiment_score=float(scores.get('sentiment', np.zeros(len(texts)))[i])
+                    scores=item_scores,
                 )
             )
 

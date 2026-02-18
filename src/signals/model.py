@@ -4,7 +4,6 @@ from src.signals.base import BaseSignal
 
 
 class BaseModel(BaseSignal):
-
     @abstractmethod
     def fit(self, X, y): ...
 
