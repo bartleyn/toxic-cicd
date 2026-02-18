@@ -92,7 +92,10 @@ def arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train a model signal")
 
     parser.add_argument(
-        "--model-type", type=str, choices=list(MODEL_REGISTRY.keys()), default="toxicity",
+        "--model-type",
+        type=str,
+        choices=list(MODEL_REGISTRY.keys()),
+        default="toxicity",
         help="Type of model to train.",
     )
     parser.add_argument("--data-path", type=str, required=True, help="Path to the CSV dataset file.")

@@ -40,9 +40,17 @@ class TestComputeBinaryMetrics:
         y_proba = np.array([0.2, 0.8, 0.3, 0.7])
         result = compute_binary_metrics(y_true, y_proba)
         expected_keys = {
-            "auc", "precision", "recall", "f1_score",
-            "specificity", "sensitivity",
-            "tp", "tn", "fp", "fn", "false_positive_rate",
+            "auc",
+            "precision",
+            "recall",
+            "f1_score",
+            "specificity",
+            "sensitivity",
+            "tp",
+            "tn",
+            "fp",
+            "fn",
+            "false_positive_rate",
         }
         assert set(result.keys()) == expected_keys
 

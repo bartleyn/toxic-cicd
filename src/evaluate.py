@@ -106,7 +106,10 @@ def write_metrics(metrics: dict, out_path: str) -> None:
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Evaluate a trained model")
     parser.add_argument(
-        "--model-type", type=str, choices=list(MODEL_REGISTRY.keys()), default="toxicity",
+        "--model-type",
+        type=str,
+        choices=list(MODEL_REGISTRY.keys()),
+        default="toxicity",
         help="Type of model to evaluate.",
     )
     parser.add_argument("--artifact-dir", type=str, required=True, help="Path to the model artifact directory")

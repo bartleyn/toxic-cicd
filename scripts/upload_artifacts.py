@@ -20,9 +20,7 @@ import os
 from google.cloud import storage
 
 
-def upload_model(
-    bucket: storage.Bucket, artifact_dir: str, model_type: str, version: str
-) -> int:
+def upload_model(bucket: storage.Bucket, artifact_dir: str, model_type: str, version: str) -> int:
     """Upload all files under artifact_dir/{version}/{model_type}/ to GCS."""
     local_dir = os.path.join(artifact_dir, version, model_type)
     if not os.path.isdir(local_dir):
@@ -53,15 +51,16 @@ def set_latest_pointer(bucket: storage.Bucket, model_type: str, version: str) ->
 def arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Upload model artifacts to GCS")
     parser.add_argument("--version", type=str, required=True, help="Model version to upload.")
+    parser.add_argument("--artifact-dir", type=str, default="artifacts", help="Local artifacts root directory.")
     parser.add_argument(
-        "--artifact-dir", type=str, default="artifacts", help="Local artifacts root directory."
-    )
-    parser.add_argument(
-        "--model-type", type=str, default=None,
+        "--model-type",
+        type=str,
+        default=None,
         help="Upload only this model type. If omitted, uploads all model types found.",
     )
     parser.add_argument(
-        "--set-latest", action="store_true",
+        "--set-latest",
+        action="store_true",
         help="Update the LATEST pointer for each uploaded model type.",
     )
     return parser
@@ -84,10 +83,7 @@ def main() -> None:
     if args.model_type:
         model_types = [args.model_type]
     else:
-        model_types = [
-            d for d in os.listdir(version_dir)
-            if os.path.isdir(os.path.join(version_dir, d))
-        ]
+        model_types = [d for d in os.listdir(version_dir) if os.path.isdir(os.path.join(version_dir, d))]
 
     if not model_types:
         raise FileNotFoundError(f"No model subdirectories found in {version_dir}")
