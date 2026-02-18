@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from api.app import app
+from api.app import app, get_predictor
 
 
 def _mock_predictor():
@@ -25,12 +25,15 @@ def _mock_predictor():
 
 @pytest.fixture()
 def client():
-    """Create a TestClient with a mocked predictor injected before startup."""
-    with patch("api.app.create_predictor", return_value=_mock_predictor()):
-        app.state.model_loaded = True
-        app.state.predictor = _mock_predictor()
-        with TestClient(app, raise_server_exceptions=False) as c:
+    """Create a TestClient with the predictor dependency overridden."""
+    mock_pred = _mock_predictor()
+    app.dependency_overrides[get_predictor] = lambda: mock_pred
+
+    with patch("api.app.create_predictor", return_value=mock_pred):
+        with TestClient(app) as c:
             yield c
+
+    app.dependency_overrides.clear()
 
 
 def test_health_returns_ok(client):
