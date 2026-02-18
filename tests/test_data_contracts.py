@@ -29,9 +29,11 @@ class TestValidateTexts:
 
 class TestItemResultSchema:
     def test_valid_item(self):
-        item = ItemResult(toxicity_score=0.9, label=1, sentiment_score=0.3)
-        assert item.label == 1
+        item = ItemResult(label=1, scores={"toxicity": 0.9, "sentiment": 0.3})
 
-    def test_defaults_sentiment_to_zero(self):
-        item = ItemResult(toxicity_score=0.5, label=0)
-        assert item.sentiment_score == 0.0
+        assert item.label == 1
+        assert item.scores["toxicity"] == 0.9
+
+    def test_empty_scores(self):
+        item = ItemResult(scores={}, label=0)
+        assert item.scores == {}

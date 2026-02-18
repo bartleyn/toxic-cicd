@@ -7,9 +7,10 @@ import joblib
 import numpy as np
 
 from src.features import normalize_texts
-from src.model import ToxicityModel
 from src.schemas import ItemResult
+from src.signals.base import BaseSignal
 from src.signals.sentiment import SentimentModel
+from src.signals.toxicity import ToxicityModel
 
 
 class Predictor:
@@ -18,25 +19,21 @@ class Predictor:
 
         tox_dir = os.path.join(artifact_dir, "toxicity")
         self.feature_extractor = joblib.load(os.path.join(tox_dir, "vectorizer.joblib"))
-        self.models = {
-            "toxicity": (ToxicityModel.load(artifact_dir=tox_dir), "binary"),
-            "sentiment": (SentimentModel(), "numeric"),
-        }
+        self.models: list[BaseSignal] = [ToxicityModel.load(artifact_dir=tox_dir), SentimentModel()]
 
-        self.default_threshold = (
-            self.models["toxicity"][0].metadata.decision_threshold if self.models["toxicity"][0].metadata else 0.5
-        )
-        self.model_version = (
-            self.models["toxicity"][0].metadata.model_version if self.models["toxicity"][0].metadata else "unknown"
-        )
+        tox = self._get_signal("toxicity")
+
+        self.default_threshold = tox.metadata.decision_threshold if tox.metadata else 0.5
+        self.model_version = tox.model_version if tox.metadata else "unknown"
+
+    def _get_signal(self, name: str) -> BaseSignal:
+        return next(s for s in self.models if s.name == name)
 
     def score_texts(self, texts: list[str]) -> np.ndarray:
         normalized_texts = normalize_texts(texts)
         X = self.feature_extractor.transform(normalized_texts)
-        return {
-            name: model.score(X) if name == "toxicity" else model.score(normalized_texts)
-            for name, (model, type) in self.models.items()
-        }
+        inputs = {"tfidf": X, "text": normalized_texts}
+        return {model.name: model.score(inputs[model.input_type]) for model in self.models}
 
     def predict(self, texts: list[str], threshold: float | None = None) -> dict[str, Any]:
         threshold = threshold if threshold is not None else self.default_threshold
@@ -46,12 +43,11 @@ class Predictor:
 
         results = []
         for i in range(len(texts)):
-            sentiment_score = float(scores["sentiment"][i]) if "sentiment" in scores else 0.0
+            item_scores = {name: float(vals[i]) for name, vals in scores.items()}
             results.append(
                 ItemResult(
-                    toxicity_score=float(toxicity_scores[i]),
                     label=int(labels[i]),
-                    sentiment_score=sentiment_score,
+                    scores=item_scores,
                 )
             )
 

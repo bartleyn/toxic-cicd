@@ -13,7 +13,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
 from src.features import TextFeatureExtractor
-from src.model import ModelMetadata, ModelSpec, ToxicityModel
+from src.signals.toxicity import ModelMetadata, ModelSpec, ToxicityModel
 from src.utils import get_git_sha, load_dataset_csv
 
 """
