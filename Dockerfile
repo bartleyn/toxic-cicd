@@ -15,12 +15,13 @@ COPY README.md ./
 
 RUN uv sync --frozen --no-dev
 ENV MODEL_VERSION=1.1.0
+ENV MODEL_ARTIFACT_DIR=artifacts/1.1.0
+
 
 
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-ENV MODEL_ARTIFACT_DIR=artifacts
 EXPOSE 8080
 
 ENTRYPOINT ["./entrypoint.sh"]
