@@ -29,6 +29,8 @@ def client(tmp_path):
         patch("api.app.create_predictor", return_value=mock_pred),
         patch("api.app.LABELS_DIR", tmp_path / "labels"),
         patch("api.app.GCS_LABELS_BUCKET", ""),
+        patch("api.app._start_periodic_flush"),
+        patch("api.app._stop_periodic_flush"),
     ):
         with TestClient(app) as c:
             yield c
@@ -126,6 +128,8 @@ def test_flush_triggered_at_threshold(tmp_path):
         patch("api.app.GCS_LABELS_BUCKET", "my-bucket"),
         patch("api.app.FLUSH_THRESHOLD", 3),
         patch("api.app.flush_to_gcs") as mock_flush,
+        patch("api.app._start_periodic_flush"),
+        patch("api.app._stop_periodic_flush"),
     ):
         with TestClient(app) as c:
             # First 2 posts: below threshold
@@ -201,3 +205,46 @@ def test_shutdown_flushes_all_files(tmp_path):
     assert mock_flush.call_count == 2
     flushed_names = {call.args[0].name for call in mock_flush.call_args_list}
     assert flushed_names == {"labels_2026-02-20.jsonl", "labels_2026-02-21.jsonl"}
+
+
+def test_periodic_flush_calls_flush_all(tmp_path):
+    """Periodic timer fires and calls flush_all_labels."""
+    from api.app import _start_periodic_flush, _stop_periodic_flush
+
+    with (
+        patch("api.app.flush_all_labels") as mock_flush_all,
+        patch("api.app.FLUSH_INTERVAL_SECONDS", 0.05),
+    ):
+        _start_periodic_flush()
+        import time
+
+        time.sleep(0.15)
+        _stop_periodic_flush()
+
+    assert mock_flush_all.call_count >= 1
+
+
+def test_periodic_flush_survives_exception(tmp_path):
+    """Periodic flush continues even if flush_all_labels raises."""
+    from api.app import _start_periodic_flush, _stop_periodic_flush
+
+    call_count = 0
+
+    def _failing_flush():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise RuntimeError("GCS down")
+
+    with (
+        patch("api.app.flush_all_labels", side_effect=_failing_flush),
+        patch("api.app.FLUSH_INTERVAL_SECONDS", 0.05),
+    ):
+        _start_periodic_flush()
+        import time
+
+        time.sleep(0.2)
+        _stop_periodic_flush()
+
+    # Should have been called more than once despite the first call failing
+    assert call_count >= 2

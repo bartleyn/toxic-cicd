@@ -94,9 +94,11 @@ class LabelResponse(BaseModel):
 LABELS_DIR = Path(os.getenv("LABELS_DIR", "data/labels"))
 GCS_LABELS_BUCKET = os.getenv("GCS_LABELS_BUCKET", "")
 GCS_LABELS_PREFIX = os.getenv("GCS_LABELS_PREFIX", "labels/")
-FLUSH_THRESHOLD = int(os.getenv("FLUSH_THRESHOLD", "50"))
+FLUSH_THRESHOLD = int(os.getenv("FLUSH_THRESHOLD", "10"))
+FLUSH_INTERVAL_SECONDS = int(os.getenv("FLUSH_INTERVAL_SECONDS", "300"))
 
 _flush_lock = threading.Lock()
+_periodic_flush_timer: threading.Timer | None = None
 logger = logging.getLogger(__name__)
 
 
@@ -139,6 +141,29 @@ def flush_all_labels() -> None:
         flush_to_gcs(jsonl_file)
 
 
+def _start_periodic_flush() -> None:
+    """Schedule a recurring flush every FLUSH_INTERVAL_SECONDS."""
+    global _periodic_flush_timer
+
+    def _tick():
+        try:
+            flush_all_labels()
+        except Exception:
+            logger.exception("Periodic flush failed")
+        _start_periodic_flush()  # reschedule
+
+    _periodic_flush_timer = threading.Timer(FLUSH_INTERVAL_SECONDS, _tick)
+    _periodic_flush_timer.daemon = True
+    _periodic_flush_timer.start()
+
+
+def _stop_periodic_flush() -> None:
+    global _periodic_flush_timer
+    if _periodic_flush_timer is not None:
+        _periodic_flush_timer.cancel()
+        _periodic_flush_timer = None
+
+
 app = FastAPI(title="Toxic Comment Classification API")
 
 _START_TIME = time.time()
@@ -166,8 +191,14 @@ def load_model_on_startup():
         raise RuntimeError(f"Failed to load model: {e}")
 
 
+@app.on_event("startup")
+def start_periodic_flush():
+    _start_periodic_flush()
+
+
 @app.on_event("shutdown")
 def flush_labels_on_shutdown():
+    _stop_periodic_flush()
     flush_all_labels()
 
 

@@ -38,7 +38,11 @@ def client():
     mock_pred = _mock_predictor()
     app.dependency_overrides[get_predictor] = lambda: mock_pred
 
-    with patch("api.app.create_predictor", return_value=mock_pred):
+    with (
+        patch("api.app.create_predictor", return_value=mock_pred),
+        patch("api.app._start_periodic_flush"),
+        patch("api.app._stop_periodic_flush"),
+    ):
         with TestClient(app) as c:
             yield c
 
