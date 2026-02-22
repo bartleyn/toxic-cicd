@@ -5,7 +5,7 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
@@ -120,7 +120,7 @@ def flush_to_gcs(filepath: Path) -> None:
         if not filepath.exists() or filepath.stat().st_size == 0:
             return
 
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
         blob_name = f"{GCS_LABELS_PREFIX}{filepath.stem}_{timestamp}.jsonl"
 
         client = _get_gcs_client()
@@ -232,7 +232,7 @@ def explain(request: ExplainRequest, predictor: Predictor = Depends(get_predicto
 def submit_label(labeled_post: LabeledPost, background_tasks: BackgroundTasks):
     try:
         LABELS_DIR.mkdir(parents=True, exist_ok=True)
-        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        date_str = datetime.now(UTC).strftime("%Y-%m-%d")
         filepath = LABELS_DIR / f"labels_{date_str}.jsonl"
         payload = labeled_post.model_dump()
         with open(filepath, "a") as f:

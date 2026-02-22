@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from api.app import LABELS_DIR, app, get_predictor
+from api.app import app, get_predictor
 
 
 def _mock_predictor():
