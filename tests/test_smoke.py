@@ -20,6 +20,13 @@ def _mock_predictor():
         "threshold": 0.5,
         "results": [],
     }
+    def _fake_get_signal(name):
+        if name in ("toxicity", "sentiment", "hatespeech"):
+            signal = MagicMock()
+            signal.name = name
+            return signal
+        raise StopIteration
+    predictor._get_signal = _fake_get_signal
     return predictor
 
 
@@ -56,3 +63,24 @@ def test_score_returns_200(client):
 def test_score_empty_texts_returns_422(client):
     resp = client.post("/score", json={"texts": []})
     assert resp.status_code == 422
+
+
+def test_explain_returns_200(client):
+    with patch("api.app.Explainer") as MockExplainer:
+        mock_instance = MockExplainer.return_value
+        mock_instance.explain.return_value = MagicMock(
+            text="hello",
+            signal_name="toxicity",
+            score=0.8,
+            contributions=[MagicMock(token="hello", weight=0.3)],
+        )
+        resp = client.post("/explain", json={"text": "hello"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["signal_name"] == "toxicity"
+        assert len(data["contributions"]) == 1
+
+def test_explain_unknown_signal_returns_400(client):
+    resp = client.post("/explain", json={"text": "hello", "signal_name": "nonexistant"})
+    assert resp.status_code == 400
+
