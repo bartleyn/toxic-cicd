@@ -6,6 +6,7 @@ import time
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
+from src.explain import Explainer
 from src.predict import Predictor
 from src.schemas import ItemResult
 
@@ -43,6 +44,24 @@ class InfoResponse(BaseModel):
     artifact_dir: str = Field(..., description="Directory where model artifacts are stored")
     model_version: str = Field(..., description="Version of the loaded model")
     default_threshold: float = Field(..., description="Default decision threshold for classification")
+
+
+class ContributionItem(BaseModel):
+    token: str = Field(..., description="Input Token")
+    weight: float = Field(..., description="SHAP attribution value")
+
+
+class ExplainRequest(BaseModel):
+    text: str = Field(..., description="Single text to explain")
+    signal_name: str = Field("toxicity", description="Name of the signal to explain")
+    top_n: int = Field(10, description="Number of top token contributions to return", ge=1, le=50)
+
+
+class ExplainResponse(BaseModel):
+    text: str = Field(..., description="Original input text")
+    signal_name: str = Field(..., description="Signal that was explained")
+    score: float = Field(..., description="Model score for this text")
+    contributions: list[ContributionItem] = Field(..., description="top token contribution")
 
 
 app = FastAPI(title="Toxic Comment Classification API")
@@ -104,3 +123,26 @@ def score(request: ScoreRequest, predictor: Predictor = Depends(get_predictor)) 
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {e}")
+
+
+@app.post("/explain", response_model=ExplainResponse)
+def explain(request: ExplainRequest, predictor: Predictor = Depends(get_predictor)) -> ExplainResponse:
+    try:
+        signal = predictor._get_signal(request.signal_name)
+    except StopIteration:
+        raise HTTPException(
+            status_code=400,
+            detail=f'Unknown signal: "{request.signal_name}" Available: {[m.name for m in predictor.models]}',
+        )
+
+    try:
+        explainer = Explainer(signal)
+        result = explainer.explain(request.text, top_n=request.top_n)
+        return ExplainResponse(
+            text=result.text,
+            signal_name=result.signal_name,
+            score=result.score,
+            contributions=[ContributionItem(token=c.token, weight=c.weight) for c in result.contributions],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Explanation failed: {e}")

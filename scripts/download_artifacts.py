@@ -73,7 +73,6 @@ def main() -> None:
     # Resolve version using the toxicity LATEST pointer (primary model)
     version = resolve_version(bucket, "toxicity", version)
 
-
     for model_type in MODEL_TYPES:
         print(f"Downloading {model_type} model v{version} to {dest_dir}/")
         count = download_model(bucket, model_type, version, dest_dir)
