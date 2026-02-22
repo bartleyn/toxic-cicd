@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -62,6 +65,31 @@ class ExplainResponse(BaseModel):
     signal_name: str = Field(..., description="Signal that was explained")
     score: float = Field(..., description="Model score for this text")
     contributions: list[ContributionItem] = Field(..., description="top token contribution")
+
+
+class LabeledPost(BaseModel):
+    uri: str = Field(..., description="Post URI")
+    text: str = Field(..., description="Post text content")
+    author_handle: str = Field(..., description="Author handle")
+    created_at: str = Field(..., description="Post creation timestamp")
+    feed_uri: str = Field(..., description="Feed URI")
+    feed_name: str = Field(..., description="Feed name")
+    toxicity_score: float = Field(..., description="Model toxicity score")
+    toxicity_label: int = Field(..., description="Model toxicity label (0 or 1)")
+    sentiment_score: float = Field(..., description="Sentiment score")
+    hatespeech_score: float = Field(..., description="Model hate speech score")
+    corrected_toxicity_label: int = Field(..., description="Human-corrected toxicity label (0 or 1)")
+    corrected_hatespeech_label: int = Field(..., description="Human-corrected hate speech label (0 or 1)")
+    tags: list[str] = Field(default_factory=list, description="Optional tags")
+    labeled_at: str = Field(..., description="Timestamp when label was applied")
+
+
+class LabelResponse(BaseModel):
+    status: str = Field(..., description="Result status")
+    uri: str = Field(..., description="URI of the labeled post")
+
+
+LABELS_DIR = Path(os.getenv("LABELS_DIR", "data/labels"))
 
 
 app = FastAPI(title="Toxic Comment Classification API")
@@ -146,3 +174,17 @@ def explain(request: ExplainRequest, predictor: Predictor = Depends(get_predicto
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Explanation failed: {e}")
+
+
+@app.post("/labels", response_model=LabelResponse, status_code=201)
+def submit_label(labeled_post: LabeledPost):
+    try:
+        LABELS_DIR.mkdir(parents=True, exist_ok=True)
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        filepath = LABELS_DIR / f"labels_{date_str}.jsonl"
+        payload = labeled_post.model_dump()
+        with open(filepath, "a") as f:
+            f.write(json.dumps(payload) + "\n")
+        return LabelResponse(status="saved", uri=labeled_post.uri)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save label: {e}")
