@@ -80,9 +80,9 @@ class LabeledPost(BaseModel):
     toxicity_label: int = Field(..., description="Model toxicity label (0 or 1)")
     sentiment_score: float = Field(..., description="Sentiment score")
     hatespeech_score: float = Field(..., description="Model hate speech score")
-    corrected_toxicity_label: int = Field(..., description="Human-corrected toxicity label (0 or 1)")
-    corrected_hatespeech_label: int = Field(..., description="Human-corrected hate speech label (0 or 1)")
-    tags: list[str] = Field(default_factory=list, description="Optional tags")
+    corrected_toxicity_label: int | None = Field(None, description="Human-corrected toxicity label (0 or 1)")
+    corrected_hatespeech_label: int | None = Field(None, description="Human-corrected hate speech label (0 or 1)")
+    tags: str | list[str] = Field(default_factory=list, description="Optional tags")
     labeled_at: str = Field(..., description="Timestamp when label was applied")
 
 
