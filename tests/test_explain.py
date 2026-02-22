@@ -5,11 +5,11 @@ from src.signals.base import BaseSignal
 
 
 class FakeSignal(BaseSignal):
-
     name = "fake"
 
     def score(self, texts: list[str]) -> np.ndarray:
         return np.array([1.0 if "bad" in t.split() else 0.0 for t in texts])
+
 
 class TestExplainer:
     def setup_method(self):
@@ -19,17 +19,17 @@ class TestExplainer:
     def test_explain_returns_explanation(self):
         result = self.explainer.explain("this is bad text")
         assert isinstance(result, Explanation)
-        assert result.signal_name == 'fake'
+        assert result.signal_name == "fake"
         assert result.score == 1.0
         assert len(result.contributions) > 0
 
     def test_top_contribution_is_bad(self):
         result = self.explainer.explain("this is bad text")
         top_token = result.contributions[0].token
-        assert top_token == 'bad'
+        assert top_token == "bad"
 
     def test_top_n_limits_output(self):
-        result = self.explainer.explain("This is bad text with many words", top_n = 2)
+        result = self.explainer.explain("This is bad text with many words", top_n=2)
         assert len(result.contributions) <= 2
 
     def test_contributions_are_sorted_by_magnitude(self):

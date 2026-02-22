@@ -20,12 +20,14 @@ def _mock_predictor():
         "threshold": 0.5,
         "results": [],
     }
+
     def _fake_get_signal(name):
         if name in ("toxicity", "sentiment", "hatespeech"):
             signal = MagicMock()
             signal.name = name
             return signal
         raise StopIteration
+
     predictor._get_signal = _fake_get_signal
     return predictor
 
@@ -80,7 +82,7 @@ def test_explain_returns_200(client):
         assert data["signal_name"] == "toxicity"
         assert len(data["contributions"]) == 1
 
+
 def test_explain_unknown_signal_returns_400(client):
     resp = client.post("/explain", json={"text": "hello", "signal_name": "nonexistant"})
     assert resp.status_code == 400
-
