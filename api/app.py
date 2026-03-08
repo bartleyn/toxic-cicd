@@ -1,19 +1,37 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
-import threading
 import time
 from datetime import UTC, datetime
-from pathlib import Path
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from google.cloud import storage
 from pydantic import BaseModel, Field, field_validator
 
 from src.explain import Explainer
 from src.predict import Predictor
 from src.schemas import ItemResult
+
+GCS_LABELS_BUCKET = os.getenv("GCS_LABELS_BUCKET", "")
+GCS_LABELS_PREFIX = os.getenv("GCS_LABELS_PREFIX", "labels/")
+
+
+def save_label_to_gcs(payload: dict) -> None:
+    if not GCS_LABELS_BUCKET:
+        raise RuntimeError("GCS_LABELS_BUCKET is not configured")
+
+    date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+    uri_hash = hashlib.sha256(payload["uri"].encode()).hexdigest()[:12]
+    timestamp = datetime.now(UTC).strftime("%H%M%S_%f")
+    blob_name = f"{GCS_LABELS_PREFIX}{date_str}/{uri_hash}_{timestamp}.json"
+
+    client = storage.Client()
+    bucket = client.bucket(GCS_LABELS_BUCKET)
+    blob = bucket.blob(blob_name)
+    blob.upload_from_string(json.dumps(payload), content_type="application/json")
 
 
 class ScoreRequest(BaseModel):
@@ -91,11 +109,7 @@ class LabelResponse(BaseModel):
     uri: str = Field(..., description="URI of the labeled post")
 
 
-GCS_LABELS_BUCKET = os.getenv("GCS_LABELS_BUCKET", "")
-GCS_LABELS_PREFIX = os.getenv("GCS_LABELS_PREFIX", "labels/")
-
 logger = logging.getLogger(__name__)
-
 
 
 app = FastAPI(title="Toxic Comment Classification API")
@@ -123,7 +137,6 @@ def load_model_on_startup():
     except Exception as e:
         app.state.model_loaded = False
         raise RuntimeError(f"Failed to load model: {e}")
-
 
 
 def get_predictor() -> Predictor:
@@ -186,17 +199,10 @@ def explain(request: ExplainRequest, predictor: Predictor = Depends(get_predicto
 @app.post("/labels", response_model=LabelResponse, status_code=201)
 def submit_label(labeled_post: LabeledPost, background_tasks: BackgroundTasks):
     try:
-        LABELS_DIR.mkdir(parents=True, exist_ok=True)
-        date_str = datetime.now(UTC).strftime("%Y-%m-%d")
-        filepath = LABELS_DIR / f"labels_{date_str}.jsonl"
         payload = labeled_post.model_dump()
-        with open(filepath, "a") as f:
-            f.write(json.dumps(payload) + "\n")
-
-        line_count = sum(1 for _ in open(filepath))
-        if line_count >= FLUSH_THRESHOLD:
-            background_tasks.add_task(flush_to_gcs, filepath)
-
+        save_label_to_gcs(payload)
         return LabelResponse(status="saved", uri=labeled_post.uri)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save label: {e}")
