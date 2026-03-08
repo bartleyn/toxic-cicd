@@ -91,77 +91,11 @@ class LabelResponse(BaseModel):
     uri: str = Field(..., description="URI of the labeled post")
 
 
-LABELS_DIR = Path(os.getenv("LABELS_DIR", "data/labels"))
 GCS_LABELS_BUCKET = os.getenv("GCS_LABELS_BUCKET", "")
 GCS_LABELS_PREFIX = os.getenv("GCS_LABELS_PREFIX", "labels/")
-FLUSH_THRESHOLD = int(os.getenv("FLUSH_THRESHOLD", "10"))
-FLUSH_INTERVAL_SECONDS = int(os.getenv("FLUSH_INTERVAL_SECONDS", "300"))
 
-_flush_lock = threading.Lock()
-_periodic_flush_timer: threading.Timer | None = None
 logger = logging.getLogger(__name__)
 
-
-def _get_gcs_client():
-    from google.cloud import storage
-
-    return storage.Client()
-
-
-def flush_to_gcs(filepath: Path) -> None:
-    """Upload a local JSONL file to GCS and remove the local copy."""
-    if not GCS_LABELS_BUCKET:
-        logger.debug("GCS_LABELS_BUCKET not set, skipping flush")
-        return
-
-    if not filepath.exists() or filepath.stat().st_size == 0:
-        return
-
-    with _flush_lock:
-        # Re-check after acquiring lock (file may have been flushed by another task)
-        if not filepath.exists() or filepath.stat().st_size == 0:
-            return
-
-        timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-        blob_name = f"{GCS_LABELS_PREFIX}{filepath.stem}_{timestamp}.jsonl"
-
-        client = _get_gcs_client()
-        bucket = client.bucket(GCS_LABELS_BUCKET)
-        blob = bucket.blob(blob_name)
-        blob.upload_from_filename(str(filepath))
-        filepath.unlink()
-        logger.info("Flushed %s to gs://%s/%s", filepath.name, GCS_LABELS_BUCKET, blob_name)
-
-
-def flush_all_labels() -> None:
-    """Flush all local JSONL label files to GCS."""
-    if not LABELS_DIR.exists():
-        return
-    for jsonl_file in LABELS_DIR.glob("labels_*.jsonl"):
-        flush_to_gcs(jsonl_file)
-
-
-def _start_periodic_flush() -> None:
-    """Schedule a recurring flush every FLUSH_INTERVAL_SECONDS."""
-    global _periodic_flush_timer
-
-    def _tick():
-        try:
-            flush_all_labels()
-        except Exception:
-            logger.exception("Periodic flush failed")
-        _start_periodic_flush()  # reschedule
-
-    _periodic_flush_timer = threading.Timer(FLUSH_INTERVAL_SECONDS, _tick)
-    _periodic_flush_timer.daemon = True
-    _periodic_flush_timer.start()
-
-
-def _stop_periodic_flush() -> None:
-    global _periodic_flush_timer
-    if _periodic_flush_timer is not None:
-        _periodic_flush_timer.cancel()
-        _periodic_flush_timer = None
 
 
 app = FastAPI(title="Toxic Comment Classification API")
@@ -190,16 +124,6 @@ def load_model_on_startup():
         app.state.model_loaded = False
         raise RuntimeError(f"Failed to load model: {e}")
 
-
-@app.on_event("startup")
-def start_periodic_flush():
-    _start_periodic_flush()
-
-
-@app.on_event("shutdown")
-def flush_labels_on_shutdown():
-    _stop_periodic_flush()
-    flush_all_labels()
 
 
 def get_predictor() -> Predictor:
