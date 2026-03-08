@@ -11,6 +11,7 @@ from sklearn.metrics import average_precision_score, confusion_matrix, precision
 from src.signals.base import BaseSignal
 from src.signals.hatespeech import HateSpeechModel
 from src.signals.toxicity import ToxicityModel
+from src.tracking import get_tracker
 from src.utils import load_dataset_csv, validate_texts
 
 MODEL_REGISTRY: dict[str, type[BaseSignal]] = {
@@ -120,6 +121,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out-filename", type=str, default="metrics.json", help="Output path for the evaluation metrics JSON file"
     )
+    parser.add_argument("--mlflow", action="store_true", default=False, help="Enable MLFlow experiment tracking")
+    parser.add_argument("--experiment-name", type=str, default=None, help="MLFlow experiment name")
     return parser
 
 
@@ -146,6 +149,21 @@ def main():
     )
 
     write_metrics(metrics, args.out_filename)
+    experiment_name = args.experiment_name or f"{args.model_type}-evaluation"
+    tracker = get_tracker(enabled=args.mlflow, experiment_name=experiment_name)
+    with tracker.start_run(run_name=metrics.get("model_version", "eval")):
+        tracker.log_params(
+            {
+                "model_type": args.model_type,
+                "artifact_dir": args.artifact_dir,
+                "eval_data_path": args.eval_data_path,
+                "threshold": threshold,
+                "model_version": metrics.get("model_version", "unknown"),
+            }
+        )
+        tracker.log_metrics(metrics["overall_metrics"], prefix="overall")
+        tracker.log_metrics(metrics["binary_at_threshold_metrics"], prefix="binary")
+        tracker.log_artifact(args.out_filename)
     print(f"[evaluate] Metrics written to {args.out_filename}")
     print(f"[evaluate] Metrics: {json.dumps(metrics, indent=2, sort_keys=True)}")
 
