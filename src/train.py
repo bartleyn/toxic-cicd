@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import roc_auc_score, average_precision_score
+from sklearn.metrics import average_precision_score, roc_auc_score
 from sklearn.model_selection import train_test_split
 
 from src.signals.base import BaseSignal
@@ -45,7 +45,7 @@ def train_model(
 
     validation_scores = model.score(X_valid)
     auc = roc_auc_score(y_valid, validation_scores) if len(np.unique(y_valid)) > 1 else float("nan")
-    pr_auc = average_precision_score(y_valid, validation_scores)  if len(np.unique(y_valid)) > 1 else float("nan")
+    pr_auc = average_precision_score(y_valid, validation_scores) if len(np.unique(y_valid)) > 1 else float("nan")
     metrics = {
         "validation_auc": auc,
         "pr_auc": pr_auc,
@@ -180,7 +180,7 @@ def main() -> None:
 
     artifact_path = os.path.join(args.artifact_dir, model_version, model.name)
 
-    experiment_name = args.experiment_name or f'{args.model_type}-training'
+    experiment_name = args.experiment_name or f"{args.model_type}-training"
     tracker = get_tracker(enabled=args.mlflow, experiment_name=experiment_name)
     with tracker.start_run(run_name=model_version):
         tracker.log_params(
@@ -193,7 +193,7 @@ def main() -> None:
                 "test_size": args.test_size,
                 "random_state": args.random_state,
                 "decision_threshold": args.decision_threshold,
-                **{k: str(v) for k,v in asdict(spec).items()},
+                **{k: str(v) for k, v in asdict(spec).items()},
             }
         )
         tracker.log_metrics(train_metrics)

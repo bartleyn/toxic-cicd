@@ -11,8 +11,8 @@ from sklearn.metrics import average_precision_score, confusion_matrix, precision
 from src.signals.base import BaseSignal
 from src.signals.hatespeech import HateSpeechModel
 from src.signals.toxicity import ToxicityModel
-from src.utils import load_dataset_csv, validate_texts
 from src.tracking import get_tracker
+from src.utils import load_dataset_csv, validate_texts
 
 MODEL_REGISTRY: dict[str, type[BaseSignal]] = {
     "toxicity": ToxicityModel,
@@ -121,8 +121,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--out-filename", type=str, default="metrics.json", help="Output path for the evaluation metrics JSON file"
     )
-    parser.add_argument('--mlflow', action='store_true', default=False, help="Enable MLFlow experiment tracking")
-    parser.add_argument('--experiment-name', type=str, default=None, help="MLFlow experiment name (default '{model-type}-evaluation').")
+    parser.add_argument("--mlflow", action="store_true", default=False, help="Enable MLFlow experiment tracking")
+    parser.add_argument("--experiment-name", type=str, default=None, help="MLFlow experiment name")
     return parser
 
 
@@ -158,7 +158,7 @@ def main():
                 "artifact_dir": args.artifact_dir,
                 "eval_data_path": args.eval_data_path,
                 "threshold": threshold,
-                "model_version": metrics.get("model_version", "unknown")
+                "model_version": metrics.get("model_version", "unknown"),
             }
         )
         tracker.log_metrics(metrics["overall_metrics"], prefix="overall")

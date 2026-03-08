@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from src.tracking import MlflowTracker, NoOpTracker, _flatten_dict, get_tracker
 
@@ -35,7 +33,7 @@ class TestMlflowTracker:
     def test_init_sets_experiment(self, mock_mlflow):
         # Patch the import inside __init__
         with patch.dict("sys.modules", {"mlflow": mock_mlflow}):
-            tracker = MlflowTracker("my-experiment")
+            _ = MlflowTracker("my-experiment")
             mock_mlflow.set_experiment.assert_called_once_with("my-experiment")
 
     @patch("src.tracking.mlflow", create=True)
@@ -122,13 +120,19 @@ class TestTrainCLIArgs:
         from src.train import arg_parser
 
         parser = arg_parser()
-        args = parser.parse_args([
-            "--data-path", "data.csv",
-            "--artifact-dir", "artifacts",
-            "--model-version", "1.0",
-            "--mlflow",
-            "--experiment-name", "my-exp",
-        ])
+        args = parser.parse_args(
+            [
+                "--data-path",
+                "data.csv",
+                "--artifact-dir",
+                "artifacts",
+                "--model-version",
+                "1.0",
+                "--mlflow",
+                "--experiment-name",
+                "my-exp",
+            ]
+        )
         assert args.mlflow is True
         assert args.experiment_name == "my-exp"
 
@@ -136,11 +140,16 @@ class TestTrainCLIArgs:
         from src.train import arg_parser
 
         parser = arg_parser()
-        args = parser.parse_args([
-            "--data-path", "data.csv",
-            "--artifact-dir", "artifacts",
-            "--model-version", "1.0",
-        ])
+        args = parser.parse_args(
+            [
+                "--data-path",
+                "data.csv",
+                "--artifact-dir",
+                "artifacts",
+                "--model-version",
+                "1.0",
+            ]
+        )
         assert args.mlflow is False
         assert args.experiment_name is None
 
@@ -150,12 +159,17 @@ class TestEvaluateCLIArgs:
         from src.evaluate import build_arg_parser
 
         parser = build_arg_parser()
-        args = parser.parse_args([
-            "--artifact-dir", "artifacts/1.0/toxicity",
-            "--eval-data-path", "eval.csv",
-            "--mlflow",
-            "--experiment-name", "my-eval-exp",
-        ])
+        args = parser.parse_args(
+            [
+                "--artifact-dir",
+                "artifacts/1.0/toxicity",
+                "--eval-data-path",
+                "eval.csv",
+                "--mlflow",
+                "--experiment-name",
+                "my-eval-exp",
+            ]
+        )
         assert args.mlflow is True
         assert args.experiment_name == "my-eval-exp"
 
@@ -163,9 +177,13 @@ class TestEvaluateCLIArgs:
         from src.evaluate import build_arg_parser
 
         parser = build_arg_parser()
-        args = parser.parse_args([
-            "--artifact-dir", "artifacts/1.0/toxicity",
-            "--eval-data-path", "eval.csv",
-        ])
+        args = parser.parse_args(
+            [
+                "--artifact-dir",
+                "artifacts/1.0/toxicity",
+                "--eval-data-path",
+                "eval.csv",
+            ]
+        )
         assert args.mlflow is False
         assert args.experiment_name is None
