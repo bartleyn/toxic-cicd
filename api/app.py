@@ -7,8 +7,7 @@ import os
 import time
 from datetime import UTC, datetime
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
-from google.cloud import storage
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from src.explain import Explainer
@@ -17,6 +16,12 @@ from src.schemas import ItemResult
 
 GCS_LABELS_BUCKET = os.getenv("GCS_LABELS_BUCKET", "")
 GCS_LABELS_PREFIX = os.getenv("GCS_LABELS_PREFIX", "labels/")
+
+
+def _get_gcs_client():
+    from google.cloud import storage
+
+    return storage.Client()
 
 
 def save_label_to_gcs(payload: dict) -> None:
@@ -28,7 +33,7 @@ def save_label_to_gcs(payload: dict) -> None:
     timestamp = datetime.now(UTC).strftime("%H%M%S_%f")
     blob_name = f"{GCS_LABELS_PREFIX}{date_str}/{uri_hash}_{timestamp}.json"
 
-    client = storage.Client()
+    client = _get_gcs_client()
     bucket = client.bucket(GCS_LABELS_BUCKET)
     blob = bucket.blob(blob_name)
     blob.upload_from_string(json.dumps(payload), content_type="application/json")
@@ -197,7 +202,7 @@ def explain(request: ExplainRequest, predictor: Predictor = Depends(get_predicto
 
 
 @app.post("/labels", response_model=LabelResponse, status_code=201)
-def submit_label(labeled_post: LabeledPost, background_tasks: BackgroundTasks):
+def submit_label(labeled_post: LabeledPost):
     try:
         payload = labeled_post.model_dump()
         save_label_to_gcs(payload)

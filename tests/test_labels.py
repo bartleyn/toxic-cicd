@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,17 +19,15 @@ def _mock_predictor():
 
 
 @pytest.fixture()
-def client(tmp_path):
-    """Create a TestClient with labels dir pointed at tmp_path."""
+def client():
+    """Create a TestClient with GCS mocked out."""
     mock_pred = _mock_predictor()
     app.dependency_overrides[get_predictor] = lambda: mock_pred
 
     with (
         patch("api.app.create_predictor", return_value=mock_pred),
-        patch("api.app.LABELS_DIR", tmp_path / "labels"),
-        patch("api.app.GCS_LABELS_BUCKET", ""),
-        patch("api.app._start_periodic_flush"),
-        patch("api.app._stop_periodic_flush"),
+        patch("api.app.save_label_to_gcs"),
+        patch("api.app.GCS_LABELS_BUCKET", "test-bucket"),
     ):
         with TestClient(app) as c:
             yield c
@@ -70,37 +67,6 @@ def test_labels_returns_201(client):
     assert data["uri"] == "at://did:plc:abc123/app.bsky.feed.post/xyz"
 
 
-def test_labels_creates_jsonl_file(client, tmp_path):
-    with patch("api.app.LABELS_DIR", tmp_path / "labels"):
-        client.post("/labels", json=_make_label_payload())
-
-        labels_dir = tmp_path / "labels"
-        jsonl_files = list(labels_dir.glob("labels_*.jsonl"))
-        assert len(jsonl_files) == 1
-
-        lines = jsonl_files[0].read_text().strip().split("\n")
-        assert len(lines) == 1
-        record = json.loads(lines[0])
-        assert record["uri"] == "at://did:plc:abc123/app.bsky.feed.post/xyz"
-        assert record["corrected_toxicity_label"] == 0
-        assert record["tags"] == ["false_positive"]
-
-
-def test_labels_appends_multiple(client, tmp_path):
-    with patch("api.app.LABELS_DIR", tmp_path / "labels"):
-        client.post("/labels", json=_make_label_payload(uri="at://post/1"))
-        client.post("/labels", json=_make_label_payload(uri="at://post/2"))
-
-        labels_dir = tmp_path / "labels"
-        jsonl_files = list(labels_dir.glob("labels_*.jsonl"))
-        assert len(jsonl_files) == 1
-
-        lines = jsonl_files[0].read_text().strip().split("\n")
-        assert len(lines) == 2
-        assert json.loads(lines[0])["uri"] == "at://post/1"
-        assert json.loads(lines[1])["uri"] == "at://post/2"
-
-
 def test_labels_missing_required_field_returns_422(client):
     payload = _make_label_payload()
     del payload["text"]
@@ -113,61 +79,37 @@ def test_labels_empty_tags_ok(client):
     assert resp.status_code == 201
 
 
-# --- GCS flush tests ---
+# --- GCS save tests ---
 
 
-def test_flush_triggered_at_threshold(tmp_path):
-    """When line count hits FLUSH_THRESHOLD, flush_to_gcs is scheduled."""
-    mock_pred = _mock_predictor()
-    app.dependency_overrides[get_predictor] = lambda: mock_pred
-    labels_dir = tmp_path / "labels"
-
-    with (
-        patch("api.app.create_predictor", return_value=mock_pred),
-        patch("api.app.LABELS_DIR", labels_dir),
-        patch("api.app.GCS_LABELS_BUCKET", "my-bucket"),
-        patch("api.app.FLUSH_THRESHOLD", 3),
-        patch("api.app.flush_to_gcs") as mock_flush,
-        patch("api.app._start_periodic_flush"),
-        patch("api.app._stop_periodic_flush"),
-    ):
-        with TestClient(app) as c:
-            # First 2 posts: below threshold
-            c.post("/labels", json=_make_label_payload(uri="at://post/1"))
-            c.post("/labels", json=_make_label_payload(uri="at://post/2"))
-            assert mock_flush.call_count == 0
-
-            # 3rd post: hits threshold, flush scheduled
-            c.post("/labels", json=_make_label_payload(uri="at://post/3"))
-            assert mock_flush.call_count == 1
-
-    app.dependency_overrides.clear()
+def test_labels_calls_gcs_with_payload(client):
+    with patch("api.app.save_label_to_gcs") as mock_save:
+        resp = client.post("/labels", json=_make_label_payload())
+        assert resp.status_code == 201
+        mock_save.assert_called_once()
+        payload = mock_save.call_args[0][0]
+        assert payload["uri"] == "at://did:plc:abc123/app.bsky.feed.post/xyz"
+        assert payload["corrected_toxicity_label"] == 0
+        assert payload["tags"] == ["false_positive"]
 
 
-def test_no_flush_when_bucket_not_set(tmp_path):
-    """flush_to_gcs is a no-op when GCS_LABELS_BUCKET is empty."""
-    from api.app import flush_to_gcs
-
-    labels_dir = tmp_path / "labels"
-    labels_dir.mkdir()
-    filepath = labels_dir / "labels_2026-02-22.jsonl"
-    filepath.write_text('{"uri": "test"}\n')
-
-    with patch("api.app.GCS_LABELS_BUCKET", ""):
-        flush_to_gcs(filepath)
-
-    # File should still exist (not uploaded, not deleted)
-    assert filepath.exists()
+def test_labels_returns_503_when_bucket_not_configured(client):
+    with patch("api.app.save_label_to_gcs", side_effect=RuntimeError("GCS_LABELS_BUCKET is not configured")):
+        resp = client.post("/labels", json=_make_label_payload())
+        assert resp.status_code == 503
 
 
-def test_flush_uploads_and_removes_local_file(tmp_path):
-    """flush_to_gcs uploads to GCS and removes the local file."""
-    from api.app import flush_to_gcs
+def test_labels_returns_500_on_gcs_failure(client):
+    with patch("api.app.save_label_to_gcs", side_effect=Exception("GCS upload failed")):
+        resp = client.post("/labels", json=_make_label_payload())
+        assert resp.status_code == 500
 
-    labels_dir = tmp_path / "labels"
-    labels_dir.mkdir()
-    filepath = labels_dir / "labels_2026-02-22.jsonl"
-    filepath.write_text('{"uri": "test"}\n')
+
+# --- save_label_to_gcs unit tests ---
+
+
+def test_save_label_to_gcs_uploads_blob():
+    from api.app import save_label_to_gcs
 
     mock_blob = MagicMock()
     mock_bucket = MagicMock()
@@ -176,75 +118,24 @@ def test_flush_uploads_and_removes_local_file(tmp_path):
     mock_client.bucket.return_value = mock_bucket
 
     with (
+        patch("api.app._get_gcs_client", return_value=mock_client),
         patch("api.app.GCS_LABELS_BUCKET", "my-bucket"),
         patch("api.app.GCS_LABELS_PREFIX", "labels/"),
-        patch("api.app._get_gcs_client", return_value=mock_client),
     ):
-        flush_to_gcs(filepath)
+        save_label_to_gcs({"uri": "at://post/1", "text": "hello"})
 
     mock_client.bucket.assert_called_once_with("my-bucket")
-    mock_blob.upload_from_filename.assert_called_once_with(str(filepath))
-    assert not filepath.exists()
+    mock_blob.upload_from_string.assert_called_once()
+    call_kwargs = mock_blob.upload_from_string.call_args
+    assert "at://post/1" in call_kwargs[0][0]
+    assert call_kwargs[1]["content_type"] == "application/json"
 
 
-def test_shutdown_flushes_all_files(tmp_path):
-    """Shutdown hook calls flush_to_gcs for every JSONL file."""
-    from api.app import flush_all_labels
-
-    labels_dir = tmp_path / "labels"
-    labels_dir.mkdir()
-    (labels_dir / "labels_2026-02-20.jsonl").write_text('{"uri": "a"}\n')
-    (labels_dir / "labels_2026-02-21.jsonl").write_text('{"uri": "b"}\n')
+def test_save_label_to_gcs_raises_when_bucket_empty():
+    from api.app import save_label_to_gcs
 
     with (
-        patch("api.app.LABELS_DIR", labels_dir),
-        patch("api.app.flush_to_gcs") as mock_flush,
+        patch("api.app.GCS_LABELS_BUCKET", ""),
+        pytest.raises(RuntimeError, match="GCS_LABELS_BUCKET is not configured"),
     ):
-        flush_all_labels()
-
-    assert mock_flush.call_count == 2
-    flushed_names = {call.args[0].name for call in mock_flush.call_args_list}
-    assert flushed_names == {"labels_2026-02-20.jsonl", "labels_2026-02-21.jsonl"}
-
-
-def test_periodic_flush_calls_flush_all(tmp_path):
-    """Periodic timer fires and calls flush_all_labels."""
-    from api.app import _start_periodic_flush, _stop_periodic_flush
-
-    with (
-        patch("api.app.flush_all_labels") as mock_flush_all,
-        patch("api.app.FLUSH_INTERVAL_SECONDS", 0.05),
-    ):
-        _start_periodic_flush()
-        import time
-
-        time.sleep(0.15)
-        _stop_periodic_flush()
-
-    assert mock_flush_all.call_count >= 1
-
-
-def test_periodic_flush_survives_exception(tmp_path):
-    """Periodic flush continues even if flush_all_labels raises."""
-    from api.app import _start_periodic_flush, _stop_periodic_flush
-
-    call_count = 0
-
-    def _failing_flush():
-        nonlocal call_count
-        call_count += 1
-        if call_count == 1:
-            raise RuntimeError("GCS down")
-
-    with (
-        patch("api.app.flush_all_labels", side_effect=_failing_flush),
-        patch("api.app.FLUSH_INTERVAL_SECONDS", 0.05),
-    ):
-        _start_periodic_flush()
-        import time
-
-        time.sleep(0.2)
-        _stop_periodic_flush()
-
-    # Should have been called more than once despite the first call failing
-    assert call_count >= 2
+        save_label_to_gcs({"uri": "test"})
