@@ -14,8 +14,8 @@ from src.explain import Explainer
 from src.predict import Predictor
 from src.schemas import ItemResult
 
-GCS_LABELS_BUCKET = os.getenv("GCS_LABELS_BUCKET", "")
-GCS_LABELS_PREFIX = os.getenv("GCS_LABELS_PREFIX", "labels/")
+GCS_LABELS_BUCKET = os.getenv("GCS_LABEL_BUCKET", "")
+GCS_LABELS_PREFIX = os.getenv("GCS_LABEL_PREFIX", "labels/")
 
 
 def _get_gcs_client():
