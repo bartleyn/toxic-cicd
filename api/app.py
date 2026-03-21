@@ -18,8 +18,51 @@ GCS_LABELS_BUCKET = os.getenv("GCS_LABEL_BUCKET", "")
 GCS_LABELS_PREFIX = os.getenv("GCS_LABEL_PREFIX", "labels/")
 
 
+def _get_fly_oidc_token(audience: str) -> str:
+    """Fetch an OIDC token from Fly.io's internal API."""
+    import httpx
+
+    fly_oidc_url = os.environ["FLY_OIDC_TOKEN_URL"]
+    resp = httpx.get(fly_oidc_url, params={"aud": audience})
+    resp.raise_for_status()
+    return resp.text
+
+
 def _get_gcs_client():
     from google.cloud import storage
+
+    sa_email = os.getenv("GCP_SERVICE_ACCOUNT_EMAIL")
+    gcp_project = os.getenv("GCP_PROJECT_ID")
+
+    if os.getenv("FLY_OIDC_TOKEN_URL") and sa_email and gcp_project:
+        import tempfile
+
+        from google.auth import identity_pool
+
+        audience = (
+            f"//iam.googleapis.com/projects/{gcp_project}"
+            f"/locations/global/workloadIdentityPools/fly-io-pool"
+            f"/providers/fly-io-provider"
+        )
+
+        # Fetch OIDC token and write to temp file for credential_source
+        oidc_token = _get_fly_oidc_token(audience)
+        token_file = tempfile.NamedTemporaryFile(mode="w", suffix=".jwt", delete=False)
+        token_file.write(oidc_token)
+        token_file.close()
+
+        credentials = identity_pool.Credentials.from_info({
+            "type": "external_account",
+            "audience": audience,
+            "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+            "token_url": "https://sts.googleapis.com/v1/token",
+            "service_account_impersonation_url": (
+                f"https://iamcredentials.googleapis.com/v1/projects/-"
+                f"/serviceAccounts/{sa_email}:generateAccessToken"
+            ),
+            "credential_source": {"file": token_file.name},
+        })
+        return storage.Client(credentials=credentials, project=gcp_project)
 
     return storage.Client()
 
@@ -210,4 +253,5 @@ def submit_label(labeled_post: LabeledPost):
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
+        logger.exception(f"Failed to save label: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to save label: {e}")
