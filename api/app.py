@@ -34,14 +34,15 @@ def _get_gcs_client():
 
     sa_email = os.getenv("GCP_SERVICE_ACCOUNT_EMAIL")
     gcp_project = os.getenv("GCP_PROJECT_ID")
+    gcp_project_number = os.getenv("GCP_PROJECT_NUMBER")
 
-    if os.getenv("FLY_APP_NAME") and sa_email and gcp_project:
+    if os.getenv("FLY_APP_NAME") and sa_email and gcp_project and gcp_project_number:
         import tempfile
 
         from google.auth import identity_pool
 
         audience = (
-            f"//iam.googleapis.com/projects/{gcp_project}"
+            f"//iam.googleapis.com/projects/{gcp_project_number}"
             f"/locations/global/workloadIdentityPools/fly-io-pool"
             f"/providers/fly-io-provider"
         )
