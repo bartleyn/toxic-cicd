@@ -53,17 +53,19 @@ def _get_gcs_client():
         token_file.write(oidc_token)
         token_file.close()
 
-        credentials = identity_pool.Credentials.from_info({
-            "type": "external_account",
-            "audience": audience,
-            "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
-            "token_url": "https://sts.googleapis.com/v1/token",
-            "service_account_impersonation_url": (
-                f"https://iamcredentials.googleapis.com/v1/projects/-"
-                f"/serviceAccounts/{sa_email}:generateAccessToken"
-            ),
-            "credential_source": {"file": token_file.name},
-        })
+        credentials = identity_pool.Credentials.from_info(
+            {
+                "type": "external_account",
+                "audience": audience,
+                "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+                "token_url": "https://sts.googleapis.com/v1/token",
+                "service_account_impersonation_url": (
+                    f"https://iamcredentials.googleapis.com/v1/projects/-"
+                    f"/serviceAccounts/{sa_email}:generateAccessToken"
+                ),
+                "credential_source": {"file": token_file.name},
+            }
+        )
         return storage.Client(credentials=credentials, project=gcp_project)
 
     return storage.Client()
