@@ -19,13 +19,14 @@ GCS_LABELS_PREFIX = os.getenv("GCS_LABEL_PREFIX", "labels/")
 
 
 def _get_fly_oidc_token(audience: str) -> str:
-    """Fetch an OIDC token from Fly.io's internal API."""
+    """Fetch an OIDC token from Fly.io's internal Unix socket API."""
     import httpx
 
-    fly_oidc_url = os.environ["FLY_OIDC_TOKEN_URL"]
-    resp = httpx.get(fly_oidc_url, params={"aud": audience})
-    resp.raise_for_status()
-    return resp.text
+    transport = httpx.HTTPTransport(uds="/.fly/api")
+    with httpx.Client(transport=transport) as client:
+        resp = client.post("http://localhost/v1/tokens/oidc", json={"aud": audience})
+        resp.raise_for_status()
+        return resp.text
 
 
 def _get_gcs_client():
@@ -34,7 +35,7 @@ def _get_gcs_client():
     sa_email = os.getenv("GCP_SERVICE_ACCOUNT_EMAIL")
     gcp_project = os.getenv("GCP_PROJECT_ID")
 
-    if os.getenv("FLY_OIDC_TOKEN_URL") and sa_email and gcp_project:
+    if os.getenv("FLY_APP_NAME") and sa_email and gcp_project:
         import tempfile
 
         from google.auth import identity_pool
