@@ -27,7 +27,7 @@ def test_entities_returns_types(model):
     res = model.entities(["My email is ntbartley@gmail.com"])
     assert "EMAIL_ADDRESS" in res[0]
 
+
 def test_entities_clean_text_returns_empty(model):
     res = model.entities(["Nothing private here"])
     assert res[0] == []
-
