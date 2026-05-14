@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from src.features import normalize_texts
 from src.predict import Predictor
 
 
@@ -15,11 +16,13 @@ def _make_predictor(tox_scores=None, sent_scores=None, threshold=0.5):
     tox_model = MagicMock()
     tox_model.name = "toxicity"
     tox_model.score.return_value = tox_scores
+    tox_model.entities.return_value = [[], []]
     tox_model.metadata = MagicMock(decision_threshold=threshold, model_version="1.0.0")
 
     sent_model = MagicMock()
     sent_model.name = "sentiment"
     sent_model.score.return_value = sent_scores
+    sent_model.entities.return_value = [[], []]
 
     predictor = object.__new__(Predictor)
     predictor.artifact_dir = "fake/dir"
@@ -53,10 +56,10 @@ class TestScoreTexts:
 
 
 class TestPredict:
-    def test_predict_calls_score_texts_once(self):
-        """predict() should only invoke score_texts a single time."""
+    def test_predict_normalizes_once(self):
+        """predict() should normalize texts exactly once."""
         predictor = _make_predictor()
-        with patch.object(predictor, "score_texts", wraps=predictor.score_texts) as spy:
+        with patch("src.predict.normalize_texts", wraps=normalize_texts) as spy:
             predictor.predict(["hello", "world"])
             assert spy.call_count == 1
 
