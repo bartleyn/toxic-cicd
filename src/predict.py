@@ -9,6 +9,7 @@ from src.features import normalize_texts
 from src.schemas import ItemResult
 from src.signals.base import BaseSignal
 from src.signals.hatespeech import HateSpeechModel
+from src.signals.pii import PIIModel
 from src.signals.sentiment import SentimentModel
 from src.signals.toxicity import ToxicityModel
 
@@ -22,6 +23,7 @@ class Predictor:
         self.models: list[BaseSignal] = [
             ToxicityModel.load(artifact_dir=tox_dir),
             SentimentModel(),
+            PIIModel(),
         ]
         if os.path.exists(hs_dir):
             self.models.append(HateSpeechModel.load(artifact_dir=hs_dir))
@@ -42,11 +44,13 @@ class Predictor:
         scores = self.score_texts(texts)
         toxicity_scores = scores.get("toxicity", np.array([0.0] * len(texts)))
         labels = (toxicity_scores >= threshold).astype(int)
+        normalized = normalize_texts(texts)
 
         results = []
         for i in range(len(texts)):
             item_scores = {name: float(vals[i]) for name, vals in scores.items()}
-            results.append(ItemResult(label=int(labels[i]), scores=item_scores))
+            item_details = {model.name: model.entities(normalized)[i] for model in self.models}
+            results.append(ItemResult(label=int(labels[i]), scores=item_scores, details=item_details))
 
         return {"model_version": self.model_version, "threshold": threshold, "results": results}
 

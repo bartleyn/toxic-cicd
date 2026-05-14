@@ -14,3 +14,7 @@ class BaseSignal(ABC):
     def score(self, texts: list[str]) -> np.ndarray:
         """Return a 1-D array of scores, one per input text."""
         ...
+
+
+    def entities(self, texts: list[str]) -> list[list[str]]:
+        return [[] for _ in texts]
