@@ -41,15 +41,18 @@ class Predictor:
 
     def predict(self, texts: list[str], threshold: float | None = None) -> dict[str, Any]:
         threshold = threshold if threshold is not None else self.default_threshold
-        scores = self.score_texts(texts)
+
+        normalized = normalize_texts(texts)
+
+        scores = {m.name: m.score(normalized) for m in self.models}
+        entities = {m.name: m.entities(normalized) for m in self.models}
         toxicity_scores = scores.get("toxicity", np.array([0.0] * len(texts)))
         labels = (toxicity_scores >= threshold).astype(int)
-        normalized = normalize_texts(texts)
 
         results = []
         for i in range(len(texts)):
             item_scores = {name: float(vals[i]) for name, vals in scores.items()}
-            item_details = {model.name: model.entities(normalized)[i] for model in self.models}
+            item_details = {name: ents[i] for name, ents in entities.items() if ents[i]}
             results.append(ItemResult(label=int(labels[i]), scores=item_scores, details=item_details))
 
         return {"model_version": self.model_version, "threshold": threshold, "results": results}
