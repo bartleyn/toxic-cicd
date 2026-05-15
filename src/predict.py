@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import numpy as np
@@ -44,8 +45,12 @@ class Predictor:
 
         normalized = normalize_texts(texts)
 
-        scores = {m.name: m.score(normalized) for m in self.models}
-        entities = {m.name: m.entities(normalized) for m in self.models}
+        with ThreadPoolExecutor() as executor:
+            score_futures = {m.name: executor.submit(m.score, normalized) for m in self.models}
+            entity_futures = {m.name: executor.submit(m.entities, normalized) for m in self.models}
+
+        scores = {name: f.result() for name, f in score_futures.items()}
+        entities = {name: f.result() for name, f in entity_futures.items()}
         toxicity_scores = scores.get("toxicity", np.array([0.0] * len(texts)))
         labels = (toxicity_scores >= threshold).astype(int)
 

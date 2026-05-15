@@ -8,7 +8,6 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
-RUN python -m spacy download en_core_web_sm
 
 COPY src/ src/
 COPY api/ api/
@@ -16,6 +15,7 @@ COPY scripts/ scripts/
 COPY README.md ./
 
 RUN uv sync --frozen --no-dev
+RUN uv run python -m spacy download en_core_web_sm
 ENV MODEL_VERSION=1.1.0
 ENV MODEL_ARTIFACT_DIR=artifacts
 
