@@ -17,5 +17,5 @@ class PIIModel(BaseSignal):
         result = []
         for text in texts:
             found = self._analyzer.analyze(text=text, language="en")
-            result.append([r.entity_type for r in found])
+            result.append([r.entity_type for r in found if r.score >= 0.95])
         return result
