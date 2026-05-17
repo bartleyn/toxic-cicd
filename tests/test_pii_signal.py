@@ -14,7 +14,7 @@ def test_score_shape(model):
 
 
 def test_pii_scores_positive(model):
-    scores = model.score(["My number is 123-456-7899"])
+    scores = model.score(["My email is test@example.com"])
     assert scores[0] > 0
 
 
