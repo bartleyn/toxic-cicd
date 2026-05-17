@@ -11,11 +11,22 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Deploy to OVH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.OVH_HOST }}
+          username: ${{ secrets.OVH_USER }}
+          key: ${{ secrets.OVH_SSH_KEY }}
+          script: |
+            cd /opt/toxic-cicd
+            git pull origin main
+            docker build -t toxic-cicd .
+            docker stop toxic-cicd || true
+            docker rm toxic-cicd || true
+            docker run -d \
+              --name toxic-cicd \
+              --restart unless-stopped \
+              -p 8080:8080 \
+              -e GCS_ARTIFACT_BUCKET='${{ secrets.GCS_ARTIFACT_BUCKET }}' \
+              toxic-cicd
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - name: Deploy to Fly.io
-        run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
