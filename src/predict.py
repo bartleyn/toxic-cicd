@@ -45,7 +45,7 @@ class Predictor:
 
         normalized = normalize_texts(texts)
 
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=3) as executor:
             score_futures = {m.name: executor.submit(m.score, normalized) for m in self.models}
             entity_futures = {m.name: executor.submit(m.entities, normalized) for m in self.models}
 
