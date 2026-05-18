@@ -8,7 +8,7 @@ class PIIModel(BaseSignal):
     name = "pii"
 
     def __init__(self):
-        self._analyzer = AnalyzerEngine(cache_recognizers=False)
+        self._analyzer = AnalyzerEngine()
 
     def score(self, texts: list[str]) -> np.ndarray:
         return np.array([1.0 if self.entities([t])[0] else 0.0 for t in texts])
