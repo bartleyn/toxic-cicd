@@ -20,7 +20,7 @@ class SentimentModel(BaseSignal):
         )
 
     def score(self, texts: list[str]) -> np.ndarray:
-        results = self._pipe(texts)
+        results = self._pipe(texts, batch_size=32)
         scores = []
         for r in results:
             score = r["score"] if r["label"] == "POSITIVE" else -r["score"]

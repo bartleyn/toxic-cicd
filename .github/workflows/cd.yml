@@ -28,5 +28,6 @@ jobs:
               --restart unless-stopped \
               -p 8080:8080 \
               -e GCS_ARTIFACT_BUCKET='${{ secrets.GCS_ARTIFACT_BUCKET }}' \
+              -e GCP_SA_KEY='${{ secrets.GCP_SA_KEY }}' \
               toxic-cicd
 
