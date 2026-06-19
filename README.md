@@ -6,7 +6,7 @@ This is an ongoing project I'm taking up in my free time to practice training, u
 Currently hosted on fly.io, an example usage is:
 
 ```
-curl -X POST https://toxic-cicd.fly.dev/score \
+curl -X POST https://vps-c3e8fb20.vps.ovh.us:8080/score \
 -H "Content-Type: application/json" \
 -d '{"texts":["go screw yourself"], "thresholds":[0.50]}' | jq
 ```
