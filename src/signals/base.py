@@ -17,3 +17,7 @@ class BaseSignal(ABC):
 
     def entities(self, texts: list[str]) -> list[list[str]]:
         return [[] for _ in texts]
+
+    def analyze(self, texts: list[str]) -> tuple[np.ndarray, list[list[str]]]:
+        """Return scores and entities together."""
+        return self.score(texts), self.entities(texts)
