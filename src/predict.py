@@ -44,8 +44,9 @@ class Predictor:
 
         normalized = normalize_texts(texts)
 
-        scores = {m.name: m.score(normalized) for m in self.models}
-        entities = {m.name: m.entities(normalized) for m in self.models}
+        analyzed = {m.name: m.analyze(normalized) for m in self.models}
+        scores = {name: signal_scores for name, (signal_scores, _) in analyzed.items()}
+        entities = {name: signal_entities for name, (_, signal_entities) in analyzed.items()}
         toxicity_scores = scores.get("toxicity", np.array([0.0] * len(texts)))
         labels = (toxicity_scores >= threshold).astype(int)
 

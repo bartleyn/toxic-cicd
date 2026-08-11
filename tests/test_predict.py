@@ -17,12 +17,14 @@ def _make_predictor(tox_scores=None, sent_scores=None, threshold=0.5):
     tox_model.name = "toxicity"
     tox_model.score.return_value = tox_scores
     tox_model.entities.return_value = [[], []]
+    tox_model.analyze.return_value = (tox_scores, [[], []])
     tox_model.metadata = MagicMock(decision_threshold=threshold, model_version="1.0.0")
 
     sent_model = MagicMock()
     sent_model.name = "sentiment"
     sent_model.score.return_value = sent_scores
     sent_model.entities.return_value = [[], []]
+    sent_model.analyze.return_value = (sent_scores, [[], []])
 
     predictor = object.__new__(Predictor)
     predictor.artifact_dir = "fake/dir"
@@ -62,6 +64,16 @@ class TestPredict:
         with patch("src.predict.normalize_texts", wraps=normalize_texts) as spy:
             predictor.predict(["hello", "world"])
             assert spy.call_count == 1
+
+    def test_predict_analyzes_each_signal_once(self):
+        """Scores and entities come from a single analyze() pass per signal."""
+        predictor = _make_predictor()
+        predictor.predict(["hello", "world"])
+
+        for model in predictor.models:
+            assert model.analyze.call_count == 1
+            model.score.assert_not_called()
+            model.entities.assert_not_called()
 
     def test_predict_returns_expected_structure(self):
         """predict() returns model_version, threshold, and results list."""
