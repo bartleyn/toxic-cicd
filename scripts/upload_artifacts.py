@@ -19,6 +19,11 @@ import os
 
 from google.cloud import storage
 
+# Never published: the artifact bucket is publicly readable (the serving container downloads
+# anonymously), and the predictor doesn't load these. eval.csv was ~95% of the bucket's bytes.
+# Eval sets live in the private gs://tox-labeled-data/model-evals/ instead.
+SKIP_FILES = {"eval.csv"}
+
 
 def upload_model(bucket: storage.Bucket, artifact_dir: str, model_type: str, version: str) -> int:
     """Upload all files under artifact_dir/{version}/{model_type}/ to GCS."""
@@ -29,6 +34,9 @@ def upload_model(bucket: storage.Bucket, artifact_dir: str, model_type: str, ver
     count = 0
     for root, _dirs, files in os.walk(local_dir):
         for filename in files:
+            if filename in SKIP_FILES:
+                print(f"  skipping {os.path.join(root, filename)} (not published)")
+                continue
             local_path = os.path.join(root, filename)
             relative = os.path.relpath(local_path, local_dir)
             blob_path = f"models/{model_type}/{version}/{model_type}/{relative}"
